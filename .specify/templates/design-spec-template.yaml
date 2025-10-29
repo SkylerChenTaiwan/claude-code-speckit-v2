@@ -1,0 +1,561 @@
+# Design Specification (Layer 3: Technical Design)
+# Generated from: visual-spec/ (human-reviewed)
+# Generated: [TIMESTAMP]
+# Version: 1.0.0
+
+version: "1.0.0"
+
+feature:
+  id: "[FEATURE_ID]"
+  name: "[FEATURE_NAME]"
+  branch: "[BRANCH_NAME]"
+  description: "[Brief description of the feature]"
+
+# ==================== TECHNICAL CONTEXT ====================
+# Technology choices and project structure
+
+technical_context:
+  language: "[typescript|python|go|rust|java|etc.]"
+
+  framework:
+    backend: "[express|fastapi|gin|actix-web|spring-boot|etc.]"
+    frontend: "[react|vue|angular|svelte|etc.]"
+
+  database: "[postgresql|mysql|mongodb|redis|etc.]"
+
+  testing:
+    backend:
+      framework: "[jest|pytest|go-test|cargo-test|etc.]"
+      api_testing: "[supertest|httpx|etc.]"
+      coverage_requirement: 80
+    frontend:
+      framework: "[jest|vitest|etc.]"
+      ui_testing: "[react-testing-library|vue-test-utils|etc.]"
+      e2e_testing: "[playwright|cypress|etc.]"
+      coverage_requirement: 80
+
+  project_structure:
+    backend: |
+      src/
+        features/
+          [feature-name]/
+            [feature].model.ts
+            [feature].service.ts
+            [feature].controller.ts
+            [feature].test.ts
+    frontend: |
+      src/
+        features/
+          [feature-name]/
+            [Feature]Page.tsx
+            [Feature]Page.test.tsx
+            components/
+              [Component].tsx
+
+# ==================== DATA MODELS ====================
+# Extracted from visual-spec/contracts/*.yaml
+
+data_models:
+  [ModelName]:
+    description: "[What this model represents]"
+    source: "visual-spec/contracts/[file].yaml#[section]"
+
+    fields:
+      id:
+        type: uuid
+        required: true
+        unique: true
+        description: "[Field description]"
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+      [fieldName]:
+        type: "[string|integer|boolean|uuid|timestamp|array|object]"
+        required: [true|false]
+        unique: [true|false]
+        validation:
+          - "[validation rule 1]"
+          - "[validation rule 2]"
+        description: "[Field description]"
+        example: "[Example value]"
+
+    database:
+      table: "[table_name]"
+      indexes:
+        - ["field1"]
+        - ["field2", "field3"]
+      constraints:
+        - "UNIQUE (field1)"
+        - "FOREIGN KEY (field2) REFERENCES other_table(id)"
+
+    relationships:
+      - type: "[one-to-many|many-to-one|many-to-many]"
+        model: "[RelatedModel]"
+        description: "[Relationship description]"
+
+# ==================== API ENDPOINTS ====================
+# Directly from visual-spec/contracts/*.yaml
+
+api_endpoints:
+  [endpointName]:
+    source: "visual-spec/contracts/[file].yaml#[endpoint]"
+    path: "[/api/resource/action]"
+    method: "[GET|POST|PUT|DELETE|PATCH]"
+    description: "[What this endpoint does]"
+
+    authentication:
+      required: [true|false]
+      type: "[bearer|basic|api-key|etc.]"
+
+    request:
+      content_type: "application/json"
+      schema:
+        type: object
+        required: ["field1", "field2"]
+        properties:
+          field1:
+            type: string
+            format: "[email|uri|date-time|etc.]"
+            minLength: [X]
+            maxLength: [Y]
+            pattern: "[regex if needed]"
+          field2:
+            type: integer
+            minimum: [X]
+            maximum: [Y]
+
+      validation:
+        - field: "field1"
+          rule: "[validation rule]"
+          error_message: "[Exact error message]"
+
+    response:
+      success:
+        status_code: [200|201|204]
+        schema:
+          type: object
+          required: ["field1", "field2"]
+          properties:
+            field1:
+              type: string
+            field2:
+              type: object
+              properties:
+                subfield1: { type: string }
+        example:
+          field1: "value"
+          field2:
+            subfield1: "value"
+
+      errors:
+        - status_code: 400
+          description: "Bad Request"
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+          example:
+            error: "Invalid field1 format"
+
+        - status_code: 401
+          description: "Unauthorized"
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+          example:
+            error: "Authentication required"
+
+    implementation:
+      controller: "src/features/[feature]/[feature].controller.ts"
+      service: "src/features/[feature]/[feature].service.ts"
+      depends_on:
+        - "[ModelName]"
+        - "[ServiceName]"
+
+# ==================== UI COMPONENTS ====================
+# Extracted from visual-spec/pages/*.md
+
+ui_components:
+  [ComponentName]:
+    source: "visual-spec/pages/[file].md#[section]"
+    type: "[page|form|input|button|card|modal|etc.]"
+    description: "[What this component does]"
+
+    props:
+      prop1:
+        type: "[string|number|boolean|object|function]"
+        required: [true|false]
+        description: "[Prop description]"
+
+    state:
+      state1:
+        type: "[type]"
+        initial_value: "[value]"
+        description: "[State description]"
+
+    behavior:
+      on_mount:
+        - "[Action on component mount]"
+
+      on_click_[element]:
+        - "[Action when element is clicked]"
+        - api_call: "[API endpoint]"
+        - on_success: "[What happens on success]"
+        - on_error: "[What happens on error]"
+
+      validation:
+        - field: "[field name]"
+          rule: "[validation rule]"
+          error_message: "[Exact error message]"
+
+    api_calls:
+      - endpoint: "[API endpoint]"
+        method: "[GET|POST|etc.]"
+        trigger: "[When this API is called]"
+        request_data: "[What data is sent]"
+        response_handling: "[How response is used]"
+
+    implementation:
+      file: "src/features/[feature]/[Component].tsx"
+      framework_specifics:
+        routing: "[How routing is handled]"
+        state_management: "[redux|context|zustand|etc.]"
+
+# ==================== BUSINESS LOGIC ====================
+# Extracted from visual-spec/flows/*.md
+
+business_logic:
+  [FlowName]:
+    source: "visual-spec/flows/[file].md"
+    description: "[What this flow accomplishes]"
+
+    steps:
+      - step: 1
+        action: "[What happens in this step]"
+        depends_on:
+          - "[Model or API needed]"
+        conditions:
+          - if: "[Condition]"
+            then: "[Action]"
+
+      - step: 2
+        action: "[What happens in this step]"
+        error_handling:
+          - error: "[Error type]"
+            action: "[How to handle]"
+
+    implementation:
+      service: "src/features/[feature]/[feature].service.ts"
+      methods:
+        - "[method1]"
+        - "[method2]"
+
+# ==================== VALIDATION RULES ====================
+# Consolidated validation rules from all sources
+
+validation_rules:
+  [fieldOrEndpoint]:
+    source: "[Where this validation comes from]"
+    rules:
+      - type: "[required|email|minLength|maxLength|pattern|custom]"
+        value: "[Rule value if applicable]"
+        error_message: "[Exact error message]"
+        applies_to: "[client|server|both]"
+
+# ==================== ERROR HANDLING ====================
+# Error messages and handling strategies
+
+error_handling:
+  client_side:
+    - error_type: "[validation|network|etc.]"
+      message: "[User-facing message]"
+      action: "[What to display/do]"
+
+  server_side:
+    - error_type: "[400|401|403|404|500]"
+      message: "[Error message]"
+      logging: "[What to log]"
+      response: "[What to return to client]"
+
+# ==================== TESTING REQUIREMENTS ====================
+# What must be tested
+
+testing_requirements:
+  unit_tests:
+    - component: "[Component/Model/Service name]"
+      must_test:
+        - "[Specific behavior to test]"
+        - "[Edge case to test]"
+
+  integration_tests:
+    - flow: "[Flow name]"
+      must_test:
+        - "[Integration point to test]"
+
+  e2e_tests:
+    - scenario: "[User scenario]"
+      steps:
+        - "[Step 1]"
+        - "[Step 2]"
+
+# ==================== DEPLOYMENT CONFIGURATION ====================
+# Deployment target and configuration
+# This section defines how the application should be deployed
+
+deployment:
+  # Deployment target (required)
+  # Determines which deployment templates and configurations will be generated
+  target: "[DEPLOYMENT_TARGET]"
+  # Supported targets:
+  #   - static-html-single-file: Single HTML file with inlined assets
+  #   - static-html-spa: Static Single Page Application (multiple files)
+  #   - gcp-cloud-run: Google Cloud Run (containerized)
+  #   - gcp-app-engine: Google App Engine
+  #   - aws-lambda-api-gateway: AWS Lambda + API Gateway (serverless)
+  #   - aws-ecs: AWS Elastic Container Service
+  #   - docker-compose-local: Local Docker Compose setup
+  #   - kubernetes: Kubernetes cluster
+  #   - vercel: Vercel platform
+  #   - netlify: Netlify platform
+  #   - cloudflare-pages: Cloudflare Pages
+
+  # === Static HTML Configuration (if target = static-html-*) ===
+  static_html:
+    single_file: [true|false]  # Bundle everything into one HTML file
+    inline_css: [true|false]   # Inline CSS instead of external file
+    inline_js: [true|false]    # Inline JavaScript instead of external file
+    embed_images: "[base64|external]"  # How to handle images
+    output_file: "dist/index.html"
+    minify: [true|false]
+    browser_support:
+      - "Chrome 90+"
+      - "Firefox 88+"
+      - "Safari 14+"
+      - "Edge 90+"
+
+  # === GCP Configuration (if target = gcp-*) ===
+  gcp:
+    project_id: "[GCP_PROJECT_ID]"
+    region: "[asia-east1|us-central1|europe-west1|etc.]"
+    service_name: "[SERVICE_NAME]"
+
+    # Cloud Run specific
+    cloud_run:
+      min_instances: [0-N]
+      max_instances: [1-N]
+      cpu: "[1|2|4|8]"
+      memory: "[128Mi|256Mi|512Mi|1Gi|2Gi|4Gi]"
+      concurrency: [1-1000]
+      timeout: [1-3600]  # seconds
+
+    # Secret Manager
+    secrets:
+      - name: "[SECRET_NAME]"
+        version: "latest"
+
+  # === AWS Configuration (if target = aws-*) ===
+  aws:
+    region: "[us-east-1|ap-northeast-1|etc.]"
+    account_id: "[AWS_ACCOUNT_ID]"
+
+    # Lambda specific
+    lambda:
+      runtime: "[nodejs18.x|python3.11|etc.]"
+      memory: [128-10240]  # MB
+      timeout: [1-900]  # seconds
+      architecture: "[x86_64|arm64]"
+
+    # ECS specific
+    ecs:
+      cluster_name: "[CLUSTER_NAME]"
+      service_name: "[SERVICE_NAME]"
+      task_cpu: "[256|512|1024|2048|4096]"
+      task_memory: "[512|1024|2048|4096|8192]"
+      desired_count: [1-N]
+
+    # Secrets Manager
+    secrets:
+      - name: "[SECRET_NAME]"
+
+  # === Container Configuration (if target uses Docker) ===
+  container:
+    base_image: "[node:18-alpine|python:3.11-slim|etc.]"
+    port: [3000|8080|etc.]
+    working_dir: "/app"
+
+    build:
+      context: "."
+      dockerfile: "Dockerfile"
+
+    health_check:
+      path: "/health"
+      interval: 30  # seconds
+      timeout: 5
+      retries: 3
+
+  # === Docker Compose Configuration (if target = docker-compose-local) ===
+  docker_compose:
+    services:
+      - name: "[SERVICE_NAME]"
+        build: "."
+        ports:
+          - "[HOST_PORT]:[CONTAINER_PORT]"
+        environment:
+          - "[KEY]=[VALUE]"
+        depends_on:
+          - "[OTHER_SERVICE]"
+
+      - name: "database"
+        image: "[postgres:15|mysql:8|mongodb:6|etc.]"
+        environment:
+          - "[DB_CONFIG]"
+        volumes:
+          - "[VOLUME_NAME]:/var/lib/[database]/data"
+
+    volumes:
+      - name: "[VOLUME_NAME]"
+
+  # === Kubernetes Configuration (if target = kubernetes) ===
+  kubernetes:
+    namespace: "[NAMESPACE]"
+
+    deployment:
+      replicas: [1-N]
+      strategy:
+        type: "[RollingUpdate|Recreate]"
+
+    service:
+      type: "[ClusterIP|NodePort|LoadBalancer]"
+      port: [80|443|etc.]
+      target_port: [3000|8080|etc.]
+
+    ingress:
+      enabled: [true|false]
+      host: "[DOMAIN]"
+      tls: [true|false]
+
+  # === Environment Variables (common across all targets) ===
+  environment:
+    # Public environment variables (safe to commit)
+    NODE_ENV: "production"
+    LOG_LEVEL: "[info|debug|warn|error]"
+    PORT: "[PORT_NUMBER]"
+    # Add more as needed
+
+  # === Secrets (sensitive data, never commit actual values) ===
+  secrets:
+    # List of required secrets (actual values stored in secret managers)
+    - name: "DATABASE_URL"
+      description: "PostgreSQL connection string"
+      required: true
+
+    - name: "API_KEY"
+      description: "External API key"
+      required: true
+
+    - name: "JWT_SECRET"
+      description: "JWT signing secret"
+      required: true
+
+  # === Build Configuration ===
+  build:
+    # Build commands to run before deployment
+    install_command: "[npm install|pip install -r requirements.txt|etc.]"
+    build_command: "[npm run build|make build|etc.]"
+    output_directory: "[dist|build|out|public]"
+
+    # Build optimizations
+    minify: [true|false]
+    source_maps: [true|false]
+    tree_shaking: [true|false]
+
+  # === Database Migrations ===
+  database:
+    migrations_enabled: [true|false]
+    migration_tool: "[prisma|sequelize|alembic|flyway|etc.]"
+    migration_command: "[npx prisma migrate deploy|etc.]"
+    run_before_deploy: [true|false]
+
+  # === Monitoring & Logging ===
+  monitoring:
+    enabled: [true|false]
+
+    # Logging
+    logging:
+      level: "[debug|info|warn|error]"
+      destination: "[stdout|file|cloud-logging]"
+      format: "[json|text]"
+
+    # Metrics
+    metrics:
+      enabled: [true|false]
+      provider: "[prometheus|datadog|cloudwatch|etc.]"
+
+    # Health checks
+    health_check:
+      path: "/health"
+      expected_status: 200
+
+  # === Scaling Configuration ===
+  scaling:
+    auto_scaling: [true|false]
+
+    # Horizontal scaling
+    min_instances: [0-N]
+    max_instances: [1-N]
+
+    # Vertical scaling
+    cpu: "[0.5|1|2|4|8]"
+    memory: "[512Mi|1Gi|2Gi|4Gi|8Gi]"
+
+    # Scaling triggers
+    triggers:
+      - type: "[cpu|memory|requests-per-second]"
+        threshold: [50-100]  # percentage
+
+  # === CI/CD Configuration ===
+  ci_cd:
+    enabled: [true|false]
+    provider: "[github-actions|gitlab-ci|circleci|jenkins|etc.]"
+
+    # Deployment triggers
+    deploy_on:
+      - branch: "[main|master|production]"
+        environment: "[production|staging]"
+
+    # Pre-deployment checks
+    required_checks:
+      - "tests-pass"
+      - "build-succeeds"
+      - "security-scan-pass"
+
+  # === Backup & Disaster Recovery ===
+  backup:
+    enabled: [true|false]
+
+    database_backup:
+      frequency: "[daily|weekly|hourly]"
+      retention_days: [7-365]
+
+    # Disaster recovery
+    disaster_recovery:
+      multi_region: [true|false]
+      backup_region: "[REGION]"
+
+# ==================== CONSTITUTION CHECK ====================
+# Validate against project principles
+
+constitution_check:
+  compliant: [true|false]
+  violations: []
+  justifications: []
+
+# ==================== TRACEABILITY ====================
+# Links back to requirements
+
+traceability:
+  requirements: "spec.md#[sections]"
+  visual_spec: "visual-spec/"
+  user_stories:
+    - US001: "[Covered by models/endpoints/components]"
+    - US002: "[Covered by models/endpoints/components]"

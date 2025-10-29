@@ -181,7 +181,9 @@ Given that feature description, do this:
 
    d. **Update Checklist**: After each validation iteration, update the checklist file with current pass/fail status
 
-7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.plan`).
+7. Report completion with branch name, spec file path, checklist results, and readiness for the next phase (`/speckit.clarify` or `/speckit.visualize`).
+
+**NOTE:** After this step, the recommended next command is `/speckit.visualize` to generate visual specifications (UI/UX designs, flow diagrams, and API contracts) from the requirements spec.
 
 **NOTE:** The script creates and checks out the new branch and initializes the spec file before writing.
 

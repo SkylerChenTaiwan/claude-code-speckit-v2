@@ -1,0 +1,28 @@
+{
+  "name": "{{APP_NAME}}",
+  "version": "{{APP_VERSION}}",
+  "description": "{{APP_DESCRIPTION}}",
+  "main": "deployment/main.js",
+  "author": "{{AUTHOR}}",
+  "license": "{{LICENSE}}",
+
+  "scripts": {
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder",
+    "electron:build:win": "electron-builder --win",
+    "electron:build:mac": "electron-builder --mac",
+    "electron:build:linux": "electron-builder --linux",
+    "build:dev": "{{BUILD_DEV_COMMAND}}",
+    "postinstall": "electron-builder install-app-deps"
+  },
+
+  "devDependencies": {
+    "electron": "^{{ELECTRON_VERSION}}",
+    "electron-builder": "^{{ELECTRON_BUILDER_VERSION}}"{{#if AUTO_UPDATE}},
+    "electron-updater": "^{{ELECTRON_UPDATER_VERSION}}"{{/if}}
+  },
+
+  "build": {
+    "extends": "deployment/electron-builder.yml"
+  }
+}

@@ -1,0 +1,79 @@
+#!/bin/bash
+set -e
+
+echo "🔨 Building static HTML single file..."
+
+# Install dependencies
+{{INSTALL_COMMAND}}
+
+# Build project
+{{BUILD_COMMAND}}
+
+# Get build output directory
+OUTPUT_DIR="{{OUTPUT_DIR}}"
+OUTPUT_FILE="{{OUTPUT_FILE}}"
+
+# Inline CSS
+{{#if INLINE_CSS}}
+echo "📝 Inlining CSS..."
+npx inline-source --root "$OUTPUT_DIR" "$OUTPUT_DIR/index.html" > "$OUTPUT_DIR/index.inlined.html"
+mv "$OUTPUT_DIR/index.inlined.html" "$OUTPUT_DIR/index.html"
+{{/if}}
+
+# Inline JS (if needed, use a bundler like webpack or parcel with inline settings)
+{{#if INLINE_JS}}
+echo "📝 Inlining JavaScript..."
+# This depends on your build tool
+# For example, with webpack: already configured to inline JS
+{{/if}}
+
+# Embed images as base64
+{{#if EMBED_IMAGES_BASE64}}
+echo "🖼️  Embedding images as base64..."
+# Use a tool like gulp-base64 or custom script
+node -e "
+const fs = require('fs');
+const path = require('path');
+
+let html = fs.readFileSync('$OUTPUT_DIR/index.html', 'utf8');
+
+// Find all img src
+html = html.replace(/<img[^>]+src=[\"']([^\"']+)[\"']/g, (match, src) => {
+  if (!src.startsWith('data:') && !src.startsWith('http')) {
+    const imgPath = path.join('$OUTPUT_DIR', src);
+    if (fs.existsSync(imgPath)) {
+      const ext = path.extname(imgPath).slice(1);
+      const data = fs.readFileSync(imgPath).toString('base64');
+      return match.replace(src, \`data:image/\${ext};base64,\${data}\`);
+    }
+  }
+  return match;
+});
+
+fs.writeFileSync('$OUTPUT_DIR/index.html', html);
+"
+{{/if}}
+
+# Minify
+{{#if MINIFY}}
+echo "⚡ Minifying..."
+if command -v html-minifier &> /dev/null; then
+  npx html-minifier \
+    --collapse-whitespace \
+    --remove-comments \
+    --minify-css true \
+    --minify-js true \
+    "$OUTPUT_DIR/index.html" \
+    -o "$OUTPUT_DIR/index.min.html"
+  mv "$OUTPUT_DIR/index.min.html" "$OUTPUT_DIR/index.html"
+else
+  echo "⚠️  html-minifier not found, skipping minification"
+fi
+{{/if}}
+
+echo "✅ Build complete: $OUTPUT_FILE"
+echo "📂 File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+echo ""
+echo "🌐 To test locally:"
+echo "   open $OUTPUT_FILE"
+echo "   或執行: python -m http.server 8000 -d $OUTPUT_DIR"

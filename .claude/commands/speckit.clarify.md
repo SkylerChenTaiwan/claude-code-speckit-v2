@@ -14,7 +14,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 Goal: Detect and reduce ambiguity or missing decision points in the active feature specification and record the clarifications directly in the spec file.
 
-Note: This clarification workflow is expected to run (and be completed) BEFORE invoking `/speckit.plan`. If the user explicitly states they are skipping clarification (e.g., exploratory spike), you may proceed, but must warn that downstream rework risk increases.
+Note: This clarification workflow is expected to run (and be completed) BEFORE invoking `/speckit.visualize`. If the user explicitly states they are skipping clarification (e.g., exploratory spike), you may proceed, but must warn that downstream rework risk increases.
 
 Execution steps:
 
@@ -161,8 +161,8 @@ Execution steps:
    - Path to updated spec.
    - Sections touched (list names).
    - Coverage summary table listing each taxonomy category with Status: Resolved (was Partial/Missing and addressed), Deferred (exceeds question quota or better suited for planning), Clear (already sufficient), Outstanding (still Partial/Missing but low impact).
-   - If any Outstanding or Deferred remain, recommend whether to proceed to `/speckit.plan` or run `/speckit.clarify` again later post-plan.
-   - Suggested next command.
+   - If any Outstanding or Deferred remain, recommend whether to proceed to `/speckit.visualize` or run `/speckit.clarify` again.
+   - Suggested next command: `/speckit.visualize` (to generate visual specifications).
 
 Behavior rules:
 

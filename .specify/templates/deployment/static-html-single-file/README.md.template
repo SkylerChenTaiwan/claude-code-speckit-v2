@@ -1,0 +1,475 @@
+# 部署指南：靜態單一 HTML 檔案
+
+**生成時間**: {{TIMESTAMP}}
+**專案**: {{PROJECT_NAME}}
+
+---
+
+## 📋 概述
+
+此專案將被建置為**單一 HTML 檔案**，可直接在瀏覽器中開啟使用，無需任何 web server。
+
+### 部署配置
+
+- **部署類型**: 靜態單一 HTML 檔案
+- **輸出檔案**: `{{OUTPUT_FILE}}`
+- **相依性**: 無（所有資源已內嵌）
+- **支援瀏覽器**:
+{{#each BROWSER_SUPPORT}}
+  - {{this}}
+{{/each}}
+
+### 檔案特性
+
+- ✅ CSS 內嵌: {{INLINE_CSS}}
+- ✅ JavaScript 內嵌: {{INLINE_JS}}
+- ✅ 圖片處理: {{EMBED_IMAGES}}
+- ✅ 程式碼壓縮: {{MINIFY}}
+
+---
+
+## 🔨 建置步驟
+
+### 1. 執行建置腳本
+
+```bash
+./deployment/build.sh
+```
+
+這個腳本會：
+1. 安裝相依套件
+2. 執行建置指令
+3. 內嵌 CSS/JS（如果啟用）
+4. 轉換圖片為 base64（如果啟用）
+5. 壓縮 HTML（如果啟用）
+
+### 2. 驗證輸出
+
+```bash
+# 檢查檔案是否存在
+ls -lh {{OUTPUT_FILE}}
+
+# 檢查檔案大小
+du -h {{OUTPUT_FILE}}
+```
+
+**建議檔案大小**：
+- ✅ < 1MB: 理想
+- ⚠️  1-5MB: 可接受
+- ❌ > 5MB: 需要優化
+
+---
+
+## 🚀 部署方式
+
+### 方式 1: 本地開啟 (測試用)
+
+直接在瀏覽器中開啟：
+
+```bash
+# macOS
+open {{OUTPUT_FILE}}
+
+# Linux
+xdg-open {{OUTPUT_FILE}}
+
+# Windows
+start {{OUTPUT_FILE}}
+```
+
+或使用簡易 HTTP server：
+
+```bash
+# Python 3
+python -m http.server 8000 -d {{OUTPUT_DIR}}
+
+# Node.js
+npx http-server {{OUTPUT_DIR}} -p 8000
+
+# 然後開啟 http://localhost:8000
+```
+
+---
+
+### 方式 2: GitHub Pages (免費靜態託管)
+
+**步驟**：
+
+1. **將專案推送到 GitHub**:
+   ```bash
+   git add .
+   git commit -m "Add static HTML build"
+   git push origin main
+   ```
+
+2. **啟用 GitHub Pages**:
+   - 前往 GitHub repository 的 `Settings` → `Pages`
+   - Source: 選擇 `main` branch
+   - Folder: 選擇 `/{{OUTPUT_DIR}}` 或 `/`（取決於你的結構）
+   - 點擊 `Save`
+
+3. **訪問網站**:
+   - 你的網站將發布到: `https://[username].github.io/[repo-name]`
+   - 等待 1-2 分鐘讓 GitHub Pages 建置完成
+
+**優點**：
+- ✅ 完全免費
+- ✅ 自動 HTTPS
+- ✅ 全球 CDN
+
+---
+
+### 方式 3: Netlify Drop (拖拽部署)
+
+**步驟**：
+
+1. 開啟 [Netlify Drop](https://app.netlify.com/drop)
+2. 將 `{{OUTPUT_DIR}}` 資料夾拖拽到頁面
+3. Netlify 自動生成一個網址
+
+**優點**：
+- ✅ 超快速（30 秒內完成）
+- ✅ 自動 HTTPS
+- ✅ 免費（100GB 流量/月）
+
+---
+
+### 方式 4: Vercel (CLI 部署)
+
+**步驟**：
+
+1. **安裝 Vercel CLI**:
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **登入**:
+   ```bash
+   vercel login
+   ```
+
+3. **部署**:
+   ```bash
+   vercel --prod {{OUTPUT_DIR}}
+   ```
+
+**優點**：
+- ✅ 自動 HTTPS
+- ✅ 全球 CDN
+- ✅ 免費（100GB 流量/月）
+
+---
+
+### 方式 5: AWS S3 + CloudFront (專業部署)
+
+**步驟**：
+
+1. **建立 S3 bucket**:
+   ```bash
+   aws s3 mb s3://{{PROJECT_NAME}}-static
+   ```
+
+2. **上傳檔案**:
+   ```bash
+   aws s3 cp {{OUTPUT_FILE}} s3://{{PROJECT_NAME}}-static/index.html --acl public-read
+   ```
+
+3. **設定為靜態網站**:
+   ```bash
+   aws s3 website s3://{{PROJECT_NAME}}-static/ --index-document index.html
+   ```
+
+4. **（選用）配置 CloudFront** 獲得更好的效能和 HTTPS
+
+**優點**：
+- ✅ 極高可靠性
+- ✅ 可擴展到超大流量
+- ✅ 完全掌控
+
+**費用**：
+- S3: ~$0.023 per GB
+- CloudFront: ~$0.085 per GB
+
+---
+
+### 方式 6: 任何 Web Server (Nginx, Apache)
+
+如果你有自己的 server：
+
+**Nginx 範例**:
+
+```nginx
+server {
+    listen 80;
+    server_name {{DOMAIN}};
+
+    root /var/www/{{PROJECT_NAME}};
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+上傳檔案：
+
+```bash
+scp {{OUTPUT_FILE}} user@server:/var/www/{{PROJECT_NAME}}/index.html
+```
+
+---
+
+## 🔧 設定調整
+
+所有設定都在 `design-spec.yaml` 的 `deployment` 區塊：
+
+```yaml
+deployment:
+  target: static-html-single-file
+
+  static_html:
+    single_file: true
+    inline_css: {{INLINE_CSS}}       # 是否內嵌 CSS
+    inline_js: {{INLINE_JS}}         # 是否內嵌 JS
+    embed_images: {{EMBED_IMAGES}}   # 圖片處理方式（base64 或 external）
+    output_file: {{OUTPUT_FILE}}     # 輸出檔案路徑
+    minify: {{MINIFY}}               # 是否壓縮程式碼
+
+    browser_support:                 # 支援的瀏覽器版本
+{{#each BROWSER_SUPPORT}}
+      - {{this}}
+{{/each}}
+
+  build:
+    install_command: "{{INSTALL_COMMAND}}"
+    build_command: "{{BUILD_COMMAND}}"
+    output_directory: "{{OUTPUT_DIR}}"
+```
+
+### 如何修改設定
+
+1. 編輯 `design-spec.yaml`
+2. 重新生成部署配置：
+   ```bash
+   /speckit.deploy --update
+   ```
+3. 重新建置：
+   ```bash
+   ./deployment/build.sh
+   ```
+
+---
+
+## 🐛 故障排除
+
+### 問題 1: 檔案太大（> 5MB）
+
+**原因**: 圖片被轉為 base64 增加了體積
+
+**解決方法**:
+1. 修改 `design-spec.yaml`:
+   ```yaml
+   embed_images: external  # 改為 external
+   ```
+2. 重新生成部署配置並建置
+3. 圖片將作為外部檔案，需要一起上傳
+
+或者：
+- 壓縮圖片（使用 tinypng.com 或 imagemagick）
+- 使用 CDN 託管大型資源
+
+---
+
+### 問題 2: 功能無法運作
+
+**檢查步驟**:
+
+1. **開啟瀏覽器 Console** (F12):
+   - 查看是否有錯誤訊息
+   - 查看是否有資源載入失敗
+
+2. **檢查 CORS 問題**:
+   - 如果直接用 `file://` 開啟，某些功能可能受限
+   - 使用 HTTP server 測試：`python -m http.server 8000`
+
+3. **檢查瀏覽器版本**:
+   - 確認瀏覽器版本符合 `browser_support` 列表
+
+4. **檢查相對路徑**:
+   - 確保所有資源路徑正確
+   - 單一檔案應該沒有外部相依
+
+---
+
+### 問題 3: 樣式跑掉
+
+**可能原因**:
+- CSS 未正確內嵌
+- Minify 過程破壞了 CSS
+
+**解決方法**:
+1. 檢查 build 輸出，確認 CSS inlining 成功
+2. 嘗試關閉 minify 測試：
+   ```yaml
+   minify: false
+   ```
+3. 檢查 CSS 是否有特殊字元需要 escape
+
+---
+
+### 問題 4: JavaScript 錯誤
+
+**可能原因**:
+- Minify 破壞了 JS
+- JS 依賴外部資源
+
+**解決方法**:
+1. 查看 Console 錯誤訊息
+2. 嘗試關閉 minify
+3. 確認所有 JS dependencies 已正確打包
+
+---
+
+## 📊 效能優化
+
+### 當前檔案大小
+
+建置後執行：
+```bash
+du -h {{OUTPUT_FILE}}
+```
+
+### 優化建議
+
+**如果檔案 > 1MB**:
+
+1. **圖片優化**:
+   ```bash
+   # 壓縮所有圖片
+   find src -name "*.png" -exec pngquant --force --output {} {} \;
+   find src -name "*.jpg" -exec jpegoptim --max=85 {} \;
+   ```
+
+2. **移除未使用的程式碼**:
+   - 啟用 tree-shaking
+   - 移除未使用的 libraries
+
+3. **使用 CDN**:
+   - 大型 libraries (React, Vue) 使用 CDN
+   - 只有應用程式邏輯內嵌
+
+4. **啟用壓縮**:
+   ```yaml
+   minify: true
+   ```
+
+---
+
+## 📈 監控與分析
+
+### Google Analytics
+
+如果需要流量分析，在 HTML 中加入：
+
+```html
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'GA_MEASUREMENT_ID');
+</script>
+```
+
+### 檔案訪問統計
+
+如果託管在 GitHub Pages、Netlify、Vercel：
+- 這些平台都提供內建的訪問統計
+- 查看各自的 Dashboard
+
+---
+
+## 🔄 更新部署
+
+### 更新流程
+
+1. **修改程式碼**
+2. **重新建置**:
+   ```bash
+   ./deployment/build.sh
+   ```
+3. **重新部署**（根據你使用的方式）:
+   ```bash
+   # GitHub Pages
+   git add . && git commit -m "Update" && git push
+
+   # Netlify Drop
+   # 重新拖拽檔案
+
+   # Vercel
+   vercel --prod {{OUTPUT_DIR}}
+
+   # AWS S3
+   aws s3 cp {{OUTPUT_FILE}} s3://{{PROJECT_NAME}}-static/index.html
+   ```
+
+### 自動化部署 (GitHub Actions)
+
+如果使用 GitHub Pages，可以設定自動建置：
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build
+        run: ./deployment/build.sh
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./{{OUTPUT_DIR}}
+```
+
+---
+
+## 📚 相關資源
+
+- **HTML Inline Tools**:
+  - [inline-source](https://www.npmjs.com/package/inline-source)
+  - [html-inline](https://www.npmjs.com/package/html-inline)
+
+- **Minification**:
+  - [html-minifier](https://github.com/kangax/html-minifier)
+  - [terser](https://terser.org/) (JS minifier)
+
+- **Hosting 比較**:
+  - [GitHub Pages vs Netlify vs Vercel](https://dev.to/...)
+
+---
+
+## ❓ 需要協助？
+
+如果遇到問題：
+
+1. 檢查本文檔的「故障排除」章節
+2. 查看建置輸出的錯誤訊息
+3. 檢查 `design-spec.yaml` 的設定是否正確
+
+---
+
+**生成工具**: SpecKit V2 - `/speckit.deploy`
+**生成時間**: {{TIMESTAMP}}
+**文檔版本**: 1.0.0

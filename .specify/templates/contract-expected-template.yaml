@@ -1,0 +1,325 @@
+# Contract Expected for WP[###]: [WP Name]
+# Generated: [TIMESTAMP]
+# Source: design-spec.yaml
+# Source: visual-spec/contracts/[file].yaml
+
+# This contract defines EXACTLY what this Work Package must implement.
+# Any deviation will cause verification to FAIL.
+
+version: "1.0.0"
+
+work_package:
+  id: "WP[###]"
+  name: "[WP Name]"
+  type: "[full-stack-feature]"
+
+# ==================== DATA MODEL ====================
+# If this WP creates/modifies a data model
+
+data_model:
+  name: "[ModelName]"
+  description: "[What this model represents]"
+
+  fields:
+    id:
+      type: "uuid"
+      required: true
+      unique: true
+      description: "[Field description]"
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    [fieldName]:
+      type: "[string|integer|boolean|uuid|timestamp|array|object]"
+      required: [true|false]
+      unique: [true|false]
+      validation:
+        rules:
+          - type: "[minLength|maxLength|pattern|email|min|max|etc.]"
+            value: [value if applicable]
+            error_message: "[Exact error message]"
+      description: "[Field description]"
+      example: "[Example value]"
+
+  database:
+    table: "[table_name]"
+    indexes:
+      - fields: ["field1"]
+        unique: [true|false]
+      - fields: ["field2", "field3"]
+        unique: [true|false]
+
+# ==================== API ENDPOINTS ====================
+# If this WP implements API endpoints
+
+api_endpoints:
+  - name: "[endpoint name]"
+    path: "[/api/resource/action]"
+    method: "[GET|POST|PUT|DELETE|PATCH]"
+    description: "[What this endpoint does]"
+
+    authentication:
+      required: [true|false]
+      type: "[bearer|basic|api-key]"
+
+    request:
+      content_type: "application/json"
+      schema:
+        type: "object"
+        required: ["field1", "field2"]
+        properties:
+          field1:
+            type: "[string|integer|boolean|etc.]"
+            format: "[email|uri|date-time|uuid|etc.]"
+            minLength: [X]
+            maxLength: [Y]
+            pattern: "[regex]"
+            description: "[Field description]"
+
+          field2:
+            type: "[type]"
+            minimum: [X]
+            maximum: [Y]
+            description: "[Field description]"
+
+      example:
+        field1: "[example value]"
+        field2: [example value]
+
+      validation:
+        - field: "field1"
+          rule: "[validation rule]"
+          error_message: "[Exact error message - word for word]"
+
+    responses:
+      success:
+        status_code: [200|201|204]
+        content_type: "application/json"
+        schema:
+          type: "object"
+          required: ["field1", "field2"]
+          properties:
+            field1:
+              type: "[type]"
+              description: "[description]"
+            field2:
+              type: "object"
+              properties:
+                subfield1:
+                  type: "[type]"
+                  description: "[description]"
+
+        example:
+          field1: "[value]"
+          field2:
+            subfield1: "[value]"
+
+      errors:
+        - status_code: 400
+          description: "Bad Request"
+          content_type: "application/json"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+                enum: ["[Exact error message 1]", "[Exact error message 2]"]
+          example:
+            error: "[Exact error message]"
+
+        - status_code: 401
+          description: "Unauthorized"
+          content_type: "application/json"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+                enum: ["Authentication required", "Invalid token"]
+          example:
+            error: "Authentication required"
+
+        - status_code: 404
+          description: "Not Found"
+          content_type: "application/json"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+                enum: ["Resource not found"]
+          example:
+            error: "Resource not found"
+
+        - status_code: 500
+          description: "Internal Server Error"
+          content_type: "application/json"
+          schema:
+            type: "object"
+            properties:
+              error:
+                type: "string"
+                enum: ["Internal server error"]
+          example:
+            error: "Internal server error"
+
+# ==================== UI COMPONENTS ====================
+# If this WP implements UI components
+
+ui_components:
+  - name: "[ComponentName]"
+    type: "[page|form|button|input|etc.]"
+    description: "[What this component does]"
+
+    props:
+      prop1:
+        type: "[string|number|boolean|object|function]"
+        required: [true|false]
+        description: "[Prop description]"
+
+    state:
+      state1:
+        type: "[type]"
+        initial_value: "[value]"
+        description: "[State description]"
+
+    elements:
+      - id: "[element-id]"
+        type: "[input|button|select|etc.]"
+        label: "[Exact label text]"
+        placeholder: "[Exact placeholder text]"
+        validation:
+          - rule: "[required|email|minLength|etc.]"
+            value: [value if applicable]
+            error_message: "[Exact error message]"
+
+    api_calls:
+      - endpoint: "[API endpoint]"
+        method: "[GET|POST|etc.]"
+        trigger: "[When this API is called]"
+        request_body:
+          field1: "[from state/props]"
+          field2: "[from state/props]"
+        on_success:
+          action: "[What happens]"
+          navigation: "[Where to navigate]"
+        on_error:
+          action: "[What happens]"
+          display: "[What error message to show]"
+
+# ==================== VALIDATION RULES ====================
+# All validation rules this WP must implement
+
+validation_rules:
+  client_side:
+    - field: "[field name]"
+      rules:
+        - type: "[required|email|minLength|maxLength|pattern|etc.]"
+          value: [value if applicable]
+          error_message: "[Exact error message]"
+
+  server_side:
+    - field: "[field name]"
+      rules:
+        - type: "[required|unique|exists|etc.]"
+          value: [value if applicable]
+          error_message: "[Exact error message]"
+
+# ==================== ERROR MESSAGES ====================
+# All error messages (EXACT - word for word)
+
+error_messages:
+  validation:
+    field1_required: "[Exact message]"
+    field1_invalid: "[Exact message]"
+    field2_too_short: "[Exact message]"
+
+  api:
+    unauthorized: "Authentication required"
+    forbidden: "Insufficient permissions"
+    not_found: "Resource not found"
+    server_error: "Internal server error"
+
+# ==================== TESTING REQUIREMENTS ====================
+# What must be tested
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "[Model/Service/Controller]"
+        tests:
+          - description: "[What to test]"
+            type: "[success|error|edge-case|validation]"
+
+    frontend:
+      - component: "[Component name]"
+        tests:
+          - description: "[What to test]"
+            type: "[render|interaction|validation]"
+
+  integration_tests:
+    - description: "[Integration scenario]"
+      steps:
+        - "[Step 1]"
+        - "[Step 2]"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== FILE STRUCTURE ====================
+# Expected file structure after implementation
+
+expected_files:
+  backend:
+    - "src/features/[feature]/[feature].model.[ext]"
+    - "src/features/[feature]/[feature].service.[ext]"
+    - "src/features/[feature]/[feature].controller.[ext]"
+    - "src/features/[feature]/[feature].test.[ext]"
+
+  frontend:
+    - "src/features/[feature]/[Feature]Page.[ext]"
+    - "src/features/[feature]/[Feature]Page.test.[ext]"
+    - "src/features/[feature]/components/[Component].[ext]"
+
+  tests:
+    - "tests/e2e/[feature].spec.[ext]"
+
+# ==================== TRACEABILITY ====================
+# Links back to source specifications
+
+traceability:
+  user_stories:
+    - "US[###]"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/[page].md"
+    contracts:
+      - "visual-spec/contracts/[api].yaml"
+    flows:
+      - "visual-spec/flows/[flow].md"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.[model]"
+      - "design-spec.yaml#api_endpoints.[endpoint]"
+      - "design-spec.yaml#ui_components.[component]"
+
+# ==================== VERIFICATION POINTS ====================
+# What will be checked during verification
+
+verification_points:
+  field_names:
+    - Check ALL field names match EXACTLY (case-sensitive)
+  field_types:
+    - Check ALL field types match EXACTLY
+  validation_rules:
+    - Check ALL validation rules are implemented
+    - Check ALL error messages match word-for-word
+  api_paths:
+    - Check ALL API paths match EXACTLY
+  http_methods:
+    - Check ALL HTTP methods match EXACTLY
+  status_codes:
+    - Check ALL status codes match EXACTLY
+  response_schemas:
+    - Check response structure matches EXACTLY
+  test_coverage:
+    - Check test coverage >= 80%

@@ -1,5 +1,5 @@
 ---
-description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.
+description: 分析所有 Work Packages，找出重複元件、工具函數和命名衝突。
 ---
 
 ## User Input
@@ -10,175 +10,318 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
-## Goal
+## Overview
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/speckit.tasks` has successfully produced a complete `tasks.md`.
+此指令掃描所有已完成的 Work Packages，分析:
+- 重複的 UI 元件（Button, Input, Card 等）
+- 重複的工具函數（formatDate, validateEmail 等）
+- 命名衝突（不同 WP 有同名但不同實作）
+- API 路徑衝突
+- 相依性分析
 
-## Operating Constraints
-
-**STRICTLY READ-ONLY**: Do **not** modify any files. Output a structured analysis report. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
-
-**Constitution Authority**: The project constitution (`.specify/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/speckit.analyze`.
+這是整合階段的第一步，為 `/speckit.integrate` 提供決策依據。
 
 ## Execution Steps
 
-### 1. Initialize Analysis Context
+### Step 1: Setup and Prerequisites
 
-Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+```bash
+# Run prerequisite check
+.specify/scripts/bash/check-prerequisites.sh --json --paths-only
+```
 
-- SPEC = FEATURE_DIR/spec.md
-- PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
+Parse JSON output for:
+- `FEATURE_DIR`: The feature directory path
 
-Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
-For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+**Check prerequisites**:
+- `FEATURE_DIR/work-packages/` must exist
+- At least 2 Work Packages must exist
+- All Work Packages must have passed verification (check for `verification-report.md` with ✅ PASS status)
 
-### 2. Load Artifacts (Progressive Disclosure)
+### Step 2: Scan All Work Packages
 
-Load only the minimal necessary context from each artifact:
+掃描 `work-packages/` 目錄下的所有 WP:
 
-**From spec.md:**
+```bash
+ls -d work-packages/WP*/
+```
 
-- Overview/Context
-- Functional Requirements
-- Non-Functional Requirements
-- User Stories
-- Edge Cases (if present)
+For each Work Package:
+1. Read `README.md` to understand what it implements
+2. Read `contract-expected.yaml` to understand its API contracts
+3. Scan implementation files to find components and utilities
 
-**From plan.md:**
+### Step 3: Analyze Components
 
-- Architecture/stack choices
-- Data Model references
-- Phases
-- Technical constraints
+#### Step 3.1: Find All Components
 
-**From tasks.md:**
+搜尋所有 WP 中的元件檔案:
 
-- Task IDs
-- Descriptions
-- Phase grouping
-- Parallel markers [P]
-- Referenced file paths
+```bash
+# For TypeScript/React projects
+find work-packages/WP*/  -name "*.tsx" -o -name "*.jsx"
 
-**From constitution:**
+# For Vue projects
+find work-packages/WP*/ -name "*.vue"
 
-- Load `.specify/memory/constitution.md` for principle validation
+# For Python projects
+find work-packages/WP*/ -name "*_component.py"
+```
 
-### 3. Build Semantic Models
+#### Step 3.2: Calculate Similarity
 
-Create internal representations (do not include raw artifacts in output):
+For each component name that appears in multiple WPs:
 
-- **Requirements inventory**: Each functional + non-functional requirement with a stable key (derive slug based on imperative phrase; e.g., "User can upload file" → `user-can-upload-file`)
-- **User story/action inventory**: Discrete user actions with acceptance criteria
-- **Task coverage mapping**: Map each task to one or more requirements or stories (inference by keyword / explicit reference patterns like IDs or key phrases)
-- **Constitution rule set**: Extract principle names and MUST/SHOULD normative statements
+**Compare**:
+1. **Props/Interface**: Props 結構是否相同？
+2. **Functionality**: 功能是否相同？
+3. **Code structure**: 程式碼結構是否相似？
+4. **Type definitions**: TypeScript types 是否相同？
 
-### 4. Detection Passes (Token-Efficient Analysis)
+**Similarity Score**:
+```
+Similarity = (
+  0.3 * props_similarity +
+  0.4 * functionality_similarity +
+  0.2 * structure_similarity +
+  0.1 * types_similarity
+)
+```
 
-Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
+**Classification**:
+- **≥ 90%**: 自動合併（Auto-merge）
+- **60-89%**: 需要人工決策（Manual decision）
+- **< 60%**: 不合併，但需要重新命名避免衝突
 
-#### A. Duplication Detection
+### Step 4: Analyze Utility Functions
 
-- Identify near-duplicate requirements
-- Mark lower-quality phrasing for consolidation
+#### Step 4.1: Find All Utility Functions
 
-#### B. Ambiguity Detection
+搜尋所有 utils 目錄:
 
-- Flag vague adjectives (fast, scalable, secure, intuitive, robust) lacking measurable criteria
-- Flag unresolved placeholders (TODO, TKTK, ???, `<placeholder>`, etc.)
+```bash
+find work-packages/WP*/ -path "*/utils/*" -type f
+```
 
-#### C. Underspecification
+#### Step 4.2: Calculate Similarity
 
-- Requirements with verbs but missing object or measurable outcome
-- User stories missing acceptance criteria alignment
-- Tasks referencing files or components not defined in spec/plan
+For each function name that appears in multiple WPs:
 
-#### D. Constitution Alignment
+**Compare**:
+1. **Function signature**: 參數和回傳值是否相同？
+2. **Implementation logic**: 實作邏輯是否相同？
+3. **Dependencies**: 相依性是否相同？
 
-- Any requirement or plan element conflicting with a MUST principle
-- Missing mandated sections or quality gates from constitution
+**Exact match** (100% similarity):
+- 函數簽名相同
+- 實作邏輯相同
+- 無額外相依性
 
-#### E. Coverage Gaps
+**Classification** (same as components):
+- ≥ 90%: Auto-merge
+- 60-89%: Manual decision
+- < 60%: Keep separate
 
-- Requirements with zero associated tasks
-- Tasks with no mapped requirement/story
-- Non-functional requirements not reflected in tasks (e.g., performance, security)
+### Step 5: Detect Naming Conflicts
 
-#### F. Inconsistency
+For each file/component name that appears in multiple WPs:
 
-- Terminology drift (same concept named differently across files)
-- Data entities referenced in plan but absent in spec (or vice versa)
-- Task ordering contradictions (e.g., integration tasks before foundational setup tasks without dependency note)
-- Conflicting requirements (e.g., one requires Next.js while other specifies Vue)
+**Check**:
+1. Are they different implementations with the same name?
+2. What's the similarity score?
 
-### 5. Severity Assignment
+**If similarity < 60%**:
+- This is a naming conflict
+- Suggest renaming strategy
 
-Use this heuristic to prioritize findings:
+**Renaming Strategy**:
+```
+原名稱: FormValidator
+WP001: LoginFormValidator
+WP002: RegisterFormValidator
 
-- **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality
-- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion
-- **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
-- **LOW**: Style/wording improvements, minor redundancy not affecting execution order
+原名稱: ApiClient
+WP004: AuthApiClient
+WP005: UserApiClient
+```
 
-### 6. Produce Compact Analysis Report
+### Step 6: Check API Path Conflicts
 
-Output a Markdown report (no file writes) with the following structure:
+Extract all API endpoints from all WPs:
 
-## Specification Analysis Report
+**From contract-expected.yaml**:
+```yaml
+api_endpoints:
+  - path: "/api/auth/login"
+    method: "POST"
+```
 
-| ID | Category | Severity | Location(s) | Summary | Recommendation |
-|----|----------|----------|-------------|---------|----------------|
-| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
+**Build a map**:
+```
+{
+  "POST /api/auth/login": ["WP001"],
+  "POST /api/auth/register": ["WP002"],
+  "GET /api/users/profile": ["WP004"]
+}
+```
 
-(Add one row per finding; generate stable IDs prefixed by category initial.)
+**If any path appears in multiple WPs**:
+- This is a conflict (unless it's intentional duplication)
+- Report as error
 
-**Coverage Summary Table:**
+### Step 7: Load Analysis Template
 
-| Requirement Key | Has Task? | Task IDs | Notes |
-|-----------------|-----------|----------|-------|
+Read the template:
+```bash
+cat .specify/templates/integration-analysis-template.md
+```
 
-**Constitution Alignment Issues:** (if any)
+### Step 8: Generate Analysis Report
 
-**Unmapped Tasks:** (if any)
+Using the template, create `FEATURE_DIR/integration/integration-analysis.md`:
 
-**Metrics:**
+Fill in:
+1. **自動合併項目表格**:
+   - List all components/functions with similarity ≥ 90%
+   - Provide merge strategy
 
-- Total Requirements
-- Total Tasks
-- Coverage % (requirements with >=1 task)
-- Ambiguity Count
-- Duplication Count
-- Critical Issues Count
+2. **需要人工決策表格**:
+   - List items with 60% ≤ similarity < 90%
+   - Provide options (merge vs keep separate)
 
-### 7. Provide Next Actions
+3. **命名衝突表格**:
+   - List items with same name but similarity < 60%
+   - Suggest renaming
 
-At end of report, output a concise Next Actions block:
+4. **API 路徑檢查**:
+   - Report any conflicts
 
-- If CRITICAL issues exist: Recommend resolving before `/speckit.implement`
-- If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
-- Provide explicit command suggestions: e.g., "Run /speckit.specify with refinement", "Run /speckit.plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
+5. **詳細分析** (for human review):
+   - Detailed comparison for each item
+   - Code snippets
+   - Similarity breakdown
 
-### 8. Offer Remediation
+### Step 9: Generate Integration Plan
 
-Ask the user: "Would you like me to suggest concrete remediation edits for the top N issues?" (Do NOT apply them automatically.)
+Based on analysis, generate a suggested integration plan:
 
-## Operating Principles
+**Phase 1: Auto-merge** (no human input needed)
+```
+- Merge Button (4 → 1)
+- Merge formatDate (3 → 1)
+- Resolve FormValidator conflict (rename)
+```
 
-### Context Efficiency
+**Phase 2: Manual decisions** (need human choice)
+```
+- Card component: Merge or keep separate?
+- validateInput: Merge or keep separate?
+```
 
-- **Minimal high-signal tokens**: Focus on actionable findings, not exhaustive documentation
-- **Progressive disclosure**: Load artifacts incrementally; don't dump all content into analysis
-- **Token-efficient output**: Limit findings table to 50 rows; summarize overflow
-- **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
+### Step 10: Report
 
-### Analysis Guidelines
+Output to user:
 
-- **NEVER modify files** (this is read-only analysis)
-- **NEVER hallucinate missing sections** (if absent, report them accurately)
-- **Prioritize constitution violations** (these are always CRITICAL)
-- **Use examples over exhaustive rules** (cite specific instances, not generic patterns)
-- **Report zero issues gracefully** (emit success report with coverage statistics)
+```
+整合分析完成
 
-## Context
+📊 統計:
+- 掃描的 Work Packages: 6
+- 發現的重複元件: 5
+- 發現的重複工具函數: 3
+- 發現的命名衝突: 2
+- API 路徑衝突: 0
 
-$ARGUMENTS
+📋 分類:
+- 可自動合併: 7 項
+- 需要人工決策: 2 項
+- 需要重新命名: 2 項
+
+📁 報告位置:
+integration/integration-analysis.md
+
+下一步:
+1. 查看報告，決定需要人工決策的項目
+2. 執行 /speckit.integrate --dry-run 預覽整合
+3. 執行 /speckit.integrate --full 進行整合
+```
+
+## Guidelines
+
+### Component Similarity Detection
+
+**For React/TypeScript**:
+```typescript
+// Component 1 (WP001)
+interface ButtonProps {
+  type: 'primary' | 'secondary';
+  onClick: () => void;
+}
+
+// Component 2 (WP002)
+interface ButtonProps {
+  type: 'primary' | 'secondary';
+  onClick: () => void;
+  loading?: boolean;  // ← 多了這個
+}
+
+// Similarity: 90% (almost identical, just one extra prop)
+```
+
+**For Python**:
+```python
+# Component 1 (WP001)
+class Button:
+    def __init__(self, type: str, on_click: Callable):
+        self.type = type
+        self.on_click = on_click
+
+# Component 2 (WP002)
+class Button:
+    def __init__(self, type: str, on_click: Callable, loading: bool = False):
+        self.type = type
+        self.on_click = on_click
+        self.loading = loading
+
+# Similarity: 90%
+```
+
+### Naming Conflict Detection
+
+**Conflict criteria**:
+- Same name
+- Different package/directory
+- Similarity < 60%
+- Different purpose
+
+**Not a conflict** (just duplication):
+- Same name
+- Similarity ≥ 60%
+- Same purpose
+
+### API Path Conflict
+
+**Conflict**:
+```
+WP001: POST /api/auth/login
+WP002: POST /api/auth/login  ← Same path, different implementation
+```
+
+**Not a conflict** (intentional duplication for testing):
+```
+WP001: POST /api/auth/login (implementation)
+WP006: POST /api/auth/login (frontend calling it)
+```
+
+## Error Handling
+
+- If no Work Packages found: ERROR "No Work Packages found. Run /speckit.breakdown first"
+- If less than 2 WPs: WARN "Only 1 Work Package found. Integration not needed"
+- If any WP hasn't passed verification: WARN "WP### hasn't passed verification. Analysis may be incomplete"
+- If unable to calculate similarity: WARN "Manual review needed for [component name]"
+
+## Context for Analysis
+
+User-provided context: $ARGUMENTS
+
+Use this context to guide analysis (e.g., "focus on UI components", "ignore backend utilities", "be conservative with merging").

@@ -1,0 +1,649 @@
+# 部署指南：Electron 桌面應用程式
+
+**生成時間**: {{TIMESTAMP}}
+**專案**: {{PROJECT_NAME}}
+**版本**: {{VERSION}}
+
+---
+
+## 📋 概述
+
+此專案將被打包為**跨平台桌面應用程式**，支援 Windows、macOS 和 Linux。
+
+### 應用程式資訊
+
+- **應用程式名稱**: {{APP_DISPLAY_NAME}}
+- **版本**: {{APP_VERSION}}
+- **App ID**: {{APP_ID}}
+- **作者**: {{AUTHOR}}
+
+### 支援平台
+
+{{#if SUPPORTS_WINDOWS}}
+- ✅ **Windows** (64-bit)
+  - 安裝檔: `.exe` (NSIS installer)
+  - 免安裝版: `-portable.exe`
+{{/if}}
+
+{{#if SUPPORTS_MAC}}
+- ✅ **macOS** (Intel & Apple Silicon)
+  - 安裝檔: `.dmg`
+  - 最低版本: macOS 10.13+
+{{/if}}
+
+{{#if SUPPORTS_LINUX}}
+- ✅ **Linux** (64-bit)
+  - Debian/Ubuntu: `.deb`
+  - 通用版本: `.AppImage`
+  - Red Hat/Fedora: `.rpm` (optional)
+{{/if}}
+
+---
+
+## 🔨 建置需求
+
+### 系統需求
+
+**開發機器**:
+- Node.js {{NODE_VERSION}} 或更高
+- npm {{NPM_VERSION}} 或更高
+
+**Windows 建置** (在 Windows 或 macOS/Linux 上):
+- 無額外需求
+
+**macOS 建置** (僅能在 macOS 上):
+- Xcode Command Line Tools
+- macOS 10.13 或更高
+
+**Linux 建置** (在 Linux 或 macOS/Linux 上):
+- 無額外需求
+
+### 安裝依賴
+
+```bash
+# 安裝 Node.js dependencies
+npm install
+
+# Electron Builder 會自動安裝 app dependencies
+# (postinstall script 會執行 electron-builder install-app-deps)
+```
+
+---
+
+## 🚀 快速開始
+
+### 開發模式
+
+在開發過程中測試 Electron app：
+
+```bash
+# 1. 啟動開發 server (另一個終端)
+npm run dev
+
+# 2. 啟動 Electron
+npm run electron:dev
+```
+
+這會開啟 Electron 視窗，連接到開發 server (`http://localhost:{{DEV_PORT}}`)，支援熱重載。
+
+### 建置生產版本
+
+```bash
+# 建置所有支援的平台
+./deployment/build.sh
+
+# 或建置特定平台
+./deployment/build.sh windows  # Windows only
+./deployment/build.sh mac      # macOS only
+./deployment/build.sh linux    # Linux only
+```
+
+---
+
+## 📦 詳細建置步驟
+
+### 步驟 1: 建置 Web 應用
+
+Electron 會載入你的 web 應用，所以先建置它：
+
+```bash
+npm run build
+```
+
+這會產生：
+```
+{{BUILD_OUTPUT}}/
+├── index.html
+├── assets/
+│   ├── js/
+│   ├── css/
+│   └── images/
+└── ...
+```
+
+### 步驟 2: 建置 Electron App
+
+#### 選項 A: 使用建置腳本（推薦）
+
+```bash
+./deployment/build.sh [platform]
+```
+
+這個腳本會：
+1. 檢查 Node.js 和 npm
+2. 安裝 dependencies（如果需要）
+3. 建置 web app
+4. 建置 Electron app
+5. 顯示建置結果
+
+#### 選項 B: 手動建置
+
+```bash
+# Windows
+npm run electron:build:win
+
+# macOS
+npm run electron:build:mac
+
+# Linux
+npm run electron:build:linux
+
+# 所有平台
+npm run electron:build
+```
+
+### 步驟 3: 檢查輸出
+
+建置完成後，安裝檔會在 `dist/` 目錄：
+
+```
+dist/
+├── {{APP_NAME}}-{{VERSION}}-win-x64.exe          # Windows 安裝檔
+├── {{APP_NAME}}-{{VERSION}}-portable.exe         # Windows 免安裝版
+├── {{APP_NAME}}-{{VERSION}}-mac-x64.dmg          # macOS (Intel)
+├── {{APP_NAME}}-{{VERSION}}-mac-arm64.dmg        # macOS (Apple Silicon)
+├── {{APP_NAME}}-{{VERSION}}-linux-x64.deb        # Linux Debian/Ubuntu
+├── {{APP_NAME}}-{{VERSION}}-linux-x64.AppImage   # Linux 通用版
+└── ...
+```
+
+---
+
+## 🧪 測試安裝檔
+
+### Windows
+
+```bash
+# 執行安裝檔
+dist/{{APP_NAME}}-{{VERSION}}-win-x64.exe
+
+# 或測試免安裝版
+dist/{{APP_NAME}}-{{VERSION}}-portable.exe
+```
+
+**測試重點**:
+- ✅ 安裝過程順利
+- ✅ 可以建立桌面捷徑
+- ✅ 可以建立開始選單捷徑
+- ✅ App 可以正常啟動
+- ✅ 解除安裝乾淨移除
+
+### macOS
+
+```bash
+# 開啟 DMG
+open dist/{{APP_NAME}}-{{VERSION}}-mac-x64.dmg
+```
+
+然後：
+1. 將 app 拖曳到 Applications 資料夾
+2. 在 Applications 中啟動 app
+3. 測試功能
+
+**第一次執行可能需要**:
+- 右鍵點擊 app → 開啟（繞過 Gatekeeper）
+- 或在系統偏好設定 → 安全性與隱私權 → 允許執行
+
+### Linux
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i dist/{{APP_NAME}}-{{VERSION}}-linux-x64.deb
+
+# 或使用 AppImage (不需要安裝)
+chmod +x dist/{{APP_NAME}}-{{VERSION}}-linux-x64.AppImage
+./dist/{{APP_NAME}}-{{VERSION}}-linux-x64.AppImage
+```
+
+---
+
+## 🔐 程式碼簽署（建議）
+
+### 為什麼需要簽署？
+
+- **Windows**: 避免 Windows Defender SmartScreen 警告
+- **macOS**: 通過 Gatekeeper，避免「無法驗證開發者」警告
+- **Linux**: 通常不需要
+
+### Windows 簽署
+
+需要 **Code Signing Certificate** (可從 DigiCert、Sectigo 等購買)
+
+```bash
+# 設定環境變數
+export CSC_LINK=/path/to/certificate.pfx
+export CSC_KEY_PASSWORD=your_password
+
+# 建置（會自動簽署）
+npm run electron:build:win
+```
+
+或在 `electron-builder.yml` 中設定：
+
+```yaml
+win:
+  certificateFile: path/to/certificate.pfx
+  certificatePassword: ${CSC_KEY_PASSWORD}
+```
+
+### macOS 簽署
+
+需要 **Apple Developer Account** ($99/year)
+
+```bash
+# 1. 設定環境變數
+export APPLE_ID=your@email.com
+export APPLE_ID_PASSWORD=@keychain:AC_PASSWORD
+export CSC_LINK=/path/to/certificate.p12
+export CSC_KEY_PASSWORD=your_password
+
+# 2. 建置（會自動簽署和公證）
+npm run electron:build:mac
+```
+
+**公證 (Notarization)**:
+
+公證是必須的（macOS 10.15+），electron-builder 會自動處理如果設定正確：
+
+```yaml
+# electron-builder.yml
+mac:
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+afterSign: scripts/notarize.js
+```
+
+---
+
+## 🚢 發布應用程式
+
+### 方式 1: GitHub Releases（推薦）
+
+**優點**:
+- 免費託管
+- 自動更新支援
+- 版本控制清楚
+
+**步驟**:
+
+1. **在 GitHub 建立 Release**:
+   ```bash
+   # Tag 版本
+   git tag v{{VERSION}}
+   git push origin v{{VERSION}}
+
+   # 使用 gh CLI 建立 release
+   gh release create v{{VERSION}} \
+     dist/*.exe \
+     dist/*.dmg \
+     dist/*.deb \
+     dist/*.AppImage \
+     --title "{{APP_NAME}} v{{VERSION}}" \
+     --notes "Release notes here"
+   ```
+
+2. **使用者下載安裝**:
+   - 前往 GitHub Releases 頁面
+   - 下載對應平台的安裝檔
+   - 執行安裝
+
+3. **自動更新**（如果啟用）:
+   - App 會自動檢查更新
+   - 使用者確認後自動下載並安裝
+
+### 方式 2: 官方網站下載
+
+將安裝檔上傳到你的網站：
+
+```
+https://yourwebsite.com/download/
+├── windows/
+│   └── {{APP_NAME}}-Setup.exe
+├── mac/
+│   ├── {{APP_NAME}}-Intel.dmg
+│   └── {{APP_NAME}}-AppleSilicon.dmg
+└── linux/
+    ├── {{APP_NAME}}.deb
+    └── {{APP_NAME}}.AppImage
+```
+
+提供下載頁面，自動偵測使用者平台並推薦對應下載。
+
+### 方式 3: App Stores
+
+#### Microsoft Store (Windows)
+
+需要 **Microsoft Developer Account** ($19 一次性費用)
+
+1. 準備 APPX 套件:
+   ```bash
+   npm run electron:build:win -- --win appx
+   ```
+
+2. 上傳到 Microsoft Partner Center
+3. 等待審核（通常 24-48 小時）
+
+#### Mac App Store
+
+需要 **Apple Developer Account** ($99/year)
+
+1. 準備 MAS 版本:
+   ```bash
+   npm run electron:build:mac -- --mac mas
+   ```
+
+2. 使用 Xcode 或 Transporter 上傳
+3. 等待審核（通常 1-2 週）
+
+#### Snap Store (Linux)
+
+免費，適合 Ubuntu/Linux
+
+```bash
+# 建置 snap
+npm run electron:build:linux -- --linux snap
+
+# 上傳
+snapcraft upload --release=stable dist/*.snap
+```
+
+---
+
+## 🔄 自動更新
+
+{{#if AUTO_UPDATE}}
+此專案已啟用自動更新功能。
+
+### 運作方式
+
+1. App 啟動後檢查更新（延遲 5 秒）
+2. 如果有新版本，通知使用者
+3. 使用者確認後下載更新
+4. 下載完成後重啟 app 安裝
+
+### 設定更新來源
+
+在 `electron-builder.yml`:
+
+```yaml
+publish:
+  provider: github
+  owner: {{GITHUB_OWNER}}
+  repo: {{GITHUB_REPO}}
+```
+
+### 發布新版本
+
+```bash
+# 1. 更新版本號
+npm version patch  # 或 minor, major
+
+# 2. 建置
+./deployment/build.sh
+
+# 3. 發布到 GitHub Releases
+gh release create v$(node -p "require('./package.json').version") \
+  dist/*.exe dist/*.dmg dist/*.deb dist/*.AppImage \
+  --title "Release v$(node -p "require('./package.json').version")"
+```
+
+### 測試自動更新
+
+1. 安裝舊版本
+2. 發布新版本到 GitHub Releases
+3. 啟動舊版本 app
+4. 應該會收到更新通知
+
+{{else}}
+此專案未啟用自動更新。
+
+要啟用自動更新，在 `design-spec.yaml` 設定:
+
+```yaml
+deployment:
+  desktop_app:
+    features:
+      auto_update: true
+```
+
+然後重新生成部署配置。
+{{/if}}
+
+---
+
+## 🎨 自訂應用程式
+
+### 更改 Icon
+
+準備不同尺寸的 icon：
+
+```
+build/
+├── icon.icns          # macOS (至少 512x512)
+├── icon.ico           # Windows (256x256)
+└── icon.png           # Linux (512x512)
+```
+
+使用工具產生：
+- macOS: [iconutil](https://developer.apple.com/library/archive/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/Optimizing/Optimizing.html)
+- Windows: [png2ico](http://www.winterdrache.de/freeware/png2ico/)
+- 線上工具: [iConvert Icons](https://iconverticons.com/)
+
+### 更改視窗設定
+
+編輯 `deployment/main.js`:
+
+```javascript
+mainWindow = new BrowserWindow({
+  width: 1200,      // 寬度
+  height: 800,      // 高度
+  minWidth: 800,    // 最小寬度
+  minHeight: 600,   // 最小高度
+  // ...
+});
+```
+
+### 更改 App 資訊
+
+編輯 `package.json`:
+
+```json
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "description": "My awesome app",
+  "author": "Your Name"
+}
+```
+
+或在 `design-spec.yaml` 更改後重新生成。
+
+---
+
+## 📊 檔案大小優化
+
+### 目前大小
+
+建置後執行：
+
+```bash
+ls -lh dist/*.{exe,dmg,deb,AppImage}
+```
+
+### 優化建議
+
+**如果安裝檔 > 100MB**:
+
+1. **啟用 asar 打包** (通常已啟用):
+   ```yaml
+   # electron-builder.yml
+   asar: true
+   ```
+
+2. **移除開發 dependencies**:
+   ```bash
+   npm prune --production
+   ```
+
+3. **壓縮 assets**:
+   - 壓縮圖片（使用 tinypng.com）
+   - 使用 webp 格式
+   - 移除未使用的字體
+
+4. **Code splitting**:
+   - 使用 dynamic imports
+   - 分離 vendor 和 app code
+
+5. **排除不必要的檔案**:
+   ```yaml
+   # electron-builder.yml
+   files:
+     - "!**/*.map"
+     - "!**/*.ts"
+     - "!**/README.md"
+   ```
+
+---
+
+## 🐛 故障排除
+
+### 建置失敗
+
+#### Error: Cannot find module 'electron'
+
+**解決**:
+```bash
+npm install electron --save-dev
+```
+
+#### Error: Application entry file "main.js" does not exist
+
+**解決**:
+檢查 `package.json` 的 `main` 欄位是否正確指向 `deployment/main.js`
+
+#### Windows 建置需要 wine
+
+如果在 macOS/Linux 上建置 Windows 版本但失敗：
+
+**解決**:
+```bash
+# macOS
+brew install wine-stable
+
+# Linux
+sudo apt-get install wine64
+```
+
+### App 無法啟動
+
+#### Windows: "Windows protected your PC"
+
+**原因**: 未簽署的應用程式
+
+**解決**:
+- 測試: 點擊「更多資訊」→「仍要執行」
+- 正式發布: 購買程式碼簽署憑證
+
+#### macOS: "Cannot be opened because the developer cannot be verified"
+
+**原因**: 未簽署或未公證
+
+**解決**:
+```bash
+# 暫時允許
+sudo spctl --master-disable
+
+# 或只允許這個 app
+xattr -cr /Applications/{{APP_NAME}}.app
+```
+
+正式發布需要簽署和公證。
+
+#### Linux: Permission denied
+
+**解決**:
+```bash
+chmod +x {{APP_NAME}}.AppImage
+```
+
+### 自動更新不運作
+
+**檢查清單**:
+- [ ] `electron-builder.yml` 有 `publish` 設定
+- [ ] GitHub Release 已建立
+- [ ] Release 包含對應平台的安裝檔
+- [ ] App 版本號小於 Release 版本號
+- [ ] 不是在開發模式（開發模式會跳過檢查）
+
+---
+
+## 📚 相關資源
+
+### 官方文件
+
+- [Electron 官方文件](https://www.electronjs.org/docs)
+- [Electron Builder 文件](https://www.electron.build/)
+- [Electron Forge (替代建置工具)](https://www.electronforge.io/)
+
+### 教學資源
+
+- [Electron Quick Start](https://www.electronjs.org/docs/latest/tutorial/quick-start)
+- [Code Signing Guide](https://www.electron.build/code-signing)
+- [macOS Notarization](https://kilianvalkhof.com/2019/electron/notarizing-your-electron-application/)
+
+### 範例專案
+
+- [Electron API Demos](https://github.com/electron/electron-api-demos)
+- [Awesome Electron](https://github.com/sindresorhus/awesome-electron)
+
+### 工具
+
+- [Electron Fiddle](https://www.electronjs.org/fiddle) - 測試 Electron 程式碼
+- [Electron DevTools](https://github.com/MarshallOfSound/electron-devtools-installer) - 安裝 Chrome DevTools
+
+---
+
+## 📝 檢查清單
+
+部署前確認：
+
+- [ ] 所有功能在三個平台都測試過
+- [ ] Icon 和 splash screen 正確顯示
+- [ ] App 資訊（名稱、版本、作者）正確
+- [ ] 自動更新功能運作（如果啟用）
+- [ ] 安裝和解除安裝流程順暢
+- [ ] 效能可接受（啟動 < 3 秒）
+- [ ] 記憶體使用合理（< 500MB）
+- [ ] 檔案大小合理（< 150MB）
+- [ ] 無 console 錯誤或警告
+- [ ] 已準備 README 和使用說明
+- [ ] 已準備隱私權政策（如果需要）
+
+---
+
+**生成工具**: SpecKit V2 - `/speckit.deploy`
+**生成時間**: {{TIMESTAMP}}
+**文檔版本**: 1.0.0
