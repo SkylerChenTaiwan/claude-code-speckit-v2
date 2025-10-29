@@ -1,0 +1,409 @@
+# Contract Expected for WP002: 文稿輸入與 TTS 功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP002"
+  name: "文稿輸入與 TTS 功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  Timecode:
+    description: "時間標記"
+    source: "design-spec.yaml#data_models.Timecode"
+
+    fields:
+      text:
+        type: "string"
+        required: true
+        description: "該時間段的文字內容"
+        example: "這是第一段文字"
+
+      startTime:
+        type: "number"
+        required: true
+        description: "開始時間 (秒)"
+        example: 0.0
+
+      endTime:
+        type: "number"
+        required: true
+        description: "結束時間 (秒)"
+        example: 2.5
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  tts_generate:
+    channel: "tts:generate"
+    type: "invoke"
+    description: "生成語音音檔和時間標記"
+    source: "design-spec.yaml#api_endpoints.tts_generate"
+
+    request:
+      schema:
+        type: "object"
+        required: ["text", "voiceId"]
+        properties:
+          text:
+            type: "string"
+            description: "要合成的文字"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "文稿內容不能為空"
+                - type: "minLength"
+                  value: 10
+                  error_message: "文稿過短,請至少輸入 10 字"
+                - type: "maxLength"
+                  value: 10000
+                  error_message: "文稿過長,最多 10000 字"
+          voiceId:
+            type: "string"
+            description: "語音 ID"
+            example: "zh-TW-HsiaoChenNeural"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "請選擇語音"
+          outputPath:
+            type: "string"
+            description: "音檔輸出路徑"
+            required: false
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            audioPath:
+              type: "string"
+              description: "生成的音檔路徑"
+            timecodes:
+              type: "array"
+              description: "時間標記陣列"
+              items:
+                $ref: "#/data_models/Timecode"
+            error:
+              type: "string"
+        example:
+          audioPath: "/path/to/audio.mp3"
+          timecodes:
+            - text: "這是第一段文字"
+              startTime: 0.0
+              endTime: 2.5
+          error: null
+
+      errors:
+        - error_message: "API 金鑰無效"
+          condition: "Google TTS API key 錯誤"
+        - error_message: "網路連線失敗,請檢查您的網路連線後重試"
+          condition: "網路錯誤"
+        - error_message: "TTS 服務暫時無法使用,請稍後再試"
+          condition: "Google TTS API 錯誤"
+
+  tts_listVoices:
+    channel: "tts:listVoices"
+    type: "invoke"
+    description: "列出可用語音"
+    source: "design-spec.yaml#api_endpoints.tts_listVoices"
+
+    request:
+      schema:
+        type: "object"
+        properties:
+          languageCode:
+            type: "string"
+            description: "語言代碼"
+            example: "zh-TW"
+            required: false
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            voices:
+              type: "array"
+              description: "語音列表"
+              items:
+                type: "object"
+                properties:
+                  id:
+                    type: "string"
+                  name:
+                    type: "string"
+                  languageCode:
+                    type: "string"
+                  gender:
+                    type: "string"
+            error:
+              type: "string"
+        example:
+          voices:
+            - id: "zh-TW-HsiaoChenNeural"
+              name: "曉臻 (女)"
+              languageCode: "zh-TW"
+              gender: "FEMALE"
+          error: null
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  ScriptInputPage:
+    name: "ScriptInputPage"
+    type: "page"
+    description: "文稿輸入頁面,輸入文稿、選擇語音、設定輸出位置"
+    source: "design-spec.yaml#ui_components.ScriptInputPage"
+
+    state:
+      scriptContent:
+        type: "string"
+        initial_value: ""
+        description: "文稿內容"
+      selectedVoice:
+        type: "string"
+        initial_value: "zh-TW-HsiaoChenNeural"
+        description: "選擇的語音 ID"
+      outputPath:
+        type: "string"
+        initial_value: "~/Documents/YTMaker3"
+        description: "輸出位置"
+      isProcessing:
+        type: "boolean"
+        initial_value: false
+        description: "是否正在處理"
+      characterCount:
+        type: "number"
+        initial_value: 0
+        description: "字數統計"
+      estimatedDuration:
+        type: "number"
+        initial_value: 0
+        description: "預估影片時長（秒）"
+
+    elements:
+      - id: "script-textarea"
+        type: "textarea"
+        placeholder: "請輸入您的影片文稿..."
+        testId: "script-input"
+        validation:
+          - rule: "minLength: 10"
+            error_message: "文稿過短,請至少輸入 10 字"
+          - rule: "maxLength: 10000"
+            error_message: "文稿過長,最多 10000 字"
+
+      - id: "voice-selector"
+        type: "select"
+        label: "選擇語音"
+        testId: "voice-selector"
+
+      - id: "output-path-input"
+        type: "input"
+        label: "輸出位置"
+        testId: "output-path"
+
+      - id: "character-count-display"
+        type: "text"
+        testId: "character-count"
+        format: "{count} 字"
+
+      - id: "estimated-duration-display"
+        type: "text"
+        testId: "estimated-duration"
+        format: "預估時長: {duration} 分鐘"
+
+      - id: "next-button"
+        type: "button"
+        label: "下一步"
+        testId: "next-btn"
+
+    api_calls:
+      - endpoint: "tts:listVoices"
+        method: "invoke"
+        trigger: "頁面載入"
+        on_success:
+          action: "更新語音選項列表"
+
+      - endpoint: "tts:generate"
+        method: "invoke"
+        trigger: "點擊下一步"
+        request_body:
+          text: "scriptContent"
+          voiceId: "selectedVoice"
+          outputPath: "outputPath"
+        on_success:
+          action: "儲存音檔路徑和時間標記到 projectStore"
+          navigation: "呼叫 gemini:generateScript 然後跳轉到 ScriptEditorPage"
+        on_error:
+          action: "顯示錯誤訊息,提供重試"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "scriptContent"
+      rules:
+        - type: "required"
+          error_message: "文稿內容不能為空"
+        - type: "minLength"
+          value: 10
+          error_message: "文稿過短,請至少輸入 10 字"
+        - type: "maxLength"
+          value: 10000
+          error_message: "文稿過長,最多 10000 字"
+
+  main_process:
+    - field: "text"
+      rules:
+        - type: "required"
+          error_message: "文稿內容不能為空"
+        - type: "minLength"
+          value: 10
+          error_message: "文稿過短,請至少輸入 10 字"
+    - field: "voiceId"
+      rules:
+        - type: "required"
+          error_message: "請選擇語音"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  validation:
+    script_empty: "文稿內容不能為空"
+    script_too_short: "文稿過短,請至少輸入 10 字"
+    script_too_long: "文稿過長,最多 10000 字"
+    voice_not_selected: "請選擇語音"
+
+  api:
+    invalid_api_key: "API 金鑰無效"
+    network_error: "網路連線失敗,請檢查您的網路連線後重試"
+    tts_service_unavailable: "TTS 服務暫時無法使用,請稍後再試"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "TTSService"
+        tests:
+          - description: "成功呼叫 Google TTS API 並返回音檔路徑和時間標記"
+            type: "success"
+          - description: "API 金鑰無效時拋出錯誤"
+            type: "error"
+          - description: "網路連線失敗時正確處理"
+            type: "error"
+          - description: "文稿少於 10 字時拋出驗證錯誤"
+            type: "validation"
+      - component: "ttsHandlers"
+        tests:
+          - description: "tts:generate 成功生成音檔"
+            type: "success"
+          - description: "tts:listVoices 返回語音列表"
+            type: "success"
+          - description: "輸入驗證失敗時返回錯誤"
+            type: "error"
+
+    frontend:
+      - component: "ScriptInputPage"
+        tests:
+          - description: "渲染所有必要元件（文稿輸入框、語音選擇器、下一步按鈕）"
+            type: "render"
+          - description: "即時字數統計正確"
+            type: "interaction"
+          - description: "預估時長計算正確（字數 ÷ 250 字/分鐘）"
+            type: "interaction"
+          - description: "文稿少於 10 字時禁用下一步按鈕"
+            type: "validation"
+          - description: "點擊下一步呼叫 tts:generate"
+            type: "interaction"
+          - description: "TTS 失敗時顯示錯誤訊息"
+            type: "error"
+
+  integration_tests:
+    - description: "完整的文稿輸入到 TTS 生成流程"
+      steps:
+        - "輸入文稿"
+        - "選擇語音"
+        - "點擊下一步"
+        - "呼叫 tts:generate"
+        - "儲存音檔路徑和時間標記到 projectStore"
+        - "呼叫 gemini:generateScript"
+
+  e2e_tests:
+    - description: "從文稿輸入到生成配音"
+      steps:
+        - "啟動應用程式"
+        - "進入文稿輸入頁面"
+        - "輸入 500 字文稿"
+        - "選擇語音"
+        - "點擊下一步"
+        - "等待 TTS 處理完成"
+        - "驗證音檔已生成"
+        - "驗證時間標記正確"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/ttsHandlers.ts"
+    - "src/main/ipc/ttsHandlers.test.ts"
+    - "src/main/services/TTSService.ts"
+    - "src/main/services/TTSService.test.ts"
+    - "src/main/utils/timecodeGenerator.ts"
+    - "src/main/utils/timecodeGenerator.test.ts"
+
+  renderer_process:
+    - "src/renderer/pages/ScriptInputPage/ScriptInputPage.tsx"
+    - "src/renderer/pages/ScriptInputPage/ScriptInputPage.test.tsx"
+    - "src/renderer/pages/ScriptInputPage/components/ScriptTextarea.tsx"
+    - "src/renderer/pages/ScriptInputPage/components/VoiceSelector.tsx"
+
+  tests:
+    - "tests/e2e/script-input-tts.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/02-script-input-page.md"
+    contracts:
+      - "visual-spec/contracts/electron-ipc.yaml"
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.Timecode"
+      - "design-spec.yaml#api_endpoints.tts_generate"
+      - "design-spec.yaml#api_endpoints.tts_listVoices"
+      - "design-spec.yaml#ui_components.ScriptInputPage"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "Timecode 欄位名稱必須與契約一致（text, startTime, endTime）"
+
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致（tts:generate, tts:listVoices）"
+
+  request_response:
+    - "Request/Response 欄位名稱必須完全一致"
+
+  validation_rules:
+    - "scriptContent minLength (10) 和 maxLength (10000) 驗證已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同（word-for-word）"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

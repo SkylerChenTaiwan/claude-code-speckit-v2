@@ -1,0 +1,199 @@
+# Contract Expected for WP010: YouTube 上傳與完成頁面
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP010"
+  name: "YouTube 上傳與完成頁面"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  APIUsageStats:
+    description: "API 用量統計"
+    source: "design-spec.yaml#data_models.APIUsageStats"
+
+    fields:
+      gemini:
+        type: "object"
+        required: true
+        ref: "GeminiUsage"
+      googleTTS:
+        type: "object"
+        required: true
+        ref: "GoogleTTSUsage"
+      replicate:
+        type: "object"
+        required: true
+        ref: "ReplicateUsage"
+      did:
+        type: "object"
+        required: false
+        ref: "DIDUsage"
+      youtube:
+        type: "object"
+        required: false
+        ref: "YouTubeUsage"
+      totalCost:
+        type: "number"
+        required: true
+        example: 0.85
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  youtube_auth:
+    channel: "youtube:auth"
+    type: "invoke"
+    description: "YouTube OAuth 2.0 認證"
+    source: "design-spec.yaml#api_endpoints.youtube_auth"
+
+  youtube_uploadVideo:
+    channel: "youtube:uploadVideo"
+    type: "invoke"
+    description: "上傳影片到 YouTube"
+    source: "design-spec.yaml#api_endpoints.youtube_uploadVideo"
+
+    request:
+      schema:
+        type: "object"
+        required: ["videoPath", "title"]
+        properties:
+          videoPath:
+            type: "string"
+          title:
+            type: "string"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "影片標題不能為空"
+                - type: "maxLength"
+                  value: 100
+                  error_message: "標題過長,最多 100 字"
+          description:
+            type: "string"
+            validation:
+              rules:
+                - type: "maxLength"
+                  value: 5000
+                  error_message: "描述過長,最多 5000 字"
+          privacyStatus:
+            type: "string"
+            validation:
+              rules:
+                - type: "enum"
+                  value: ["public", "private", "unlisted"]
+                  error_message: "無效的隱私設定"
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  YouTubeUploadPage:
+    name: "YouTubeUploadPage"
+    type: "page"
+    source: "design-spec.yaml#ui_components.YouTubeUploadPage"
+
+  CompletionPage:
+    name: "CompletionPage"
+    type: "page"
+    source: "design-spec.yaml#ui_components.CompletionPage"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "videoTitle"
+      rules:
+        - type: "required"
+          error_message: "影片標題不能為空"
+        - type: "maxLength"
+          value: 100
+          error_message: "標題過長,最多 100 字"
+
+    - field: "videoDescription"
+      rules:
+        - type: "maxLength"
+          value: 5000
+          error_message: "描述過長,最多 5000 字"
+
+    - field: "publishAt"
+      rules:
+        - type: "futureDate"
+          error_message: "排程時間必須為未來時間"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  youtube:
+    auth_failed: "授權失敗"
+    upload_failed: "上傳失敗"
+    quota_exceeded: "配額超限"
+
+  validation:
+    title_empty: "影片標題不能為空"
+    title_too_long: "標題過長,最多 100 字"
+    description_too_long: "描述過長,最多 5000 字"
+    invalid_schedule: "排程時間必須為未來時間"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "YouTubeService"
+        tests:
+          - description: "OAuth 2.0 認證流程正確"
+            type: "success"
+          - description: "上傳影片並返回影片 ID 和 URL"
+            type: "success"
+          - description: "Token 過期時自動更新"
+            type: "token-refresh"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/youtubeHandlers.ts"
+    - "src/main/services/YouTubeService.ts"
+
+  renderer_process:
+    - "src/renderer/pages/YouTubeUploadPage/YouTubeUploadPage.tsx"
+    - "src/renderer/pages/CompletionPage/CompletionPage.tsx"
+
+  tests:
+    - "tests/e2e/youtube-upload.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+    - "US005"
+  design_spec:
+    sections:
+      - "design-spec.yaml#api_endpoints.youtube_auth"
+      - "design-spec.yaml#api_endpoints.youtube_uploadVideo"
+      - "design-spec.yaml#validation_rules.videoTitle"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 APIUsageStats 欄位名稱必須與契約一致"
+
+  validation_rules:
+    - "影片標題驗證已實作(必填,最多 100 字)"
+    - "描述長度驗證已實作(最多 5000 字)"
+    - "排程時間驗證已實作(未來時間)"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

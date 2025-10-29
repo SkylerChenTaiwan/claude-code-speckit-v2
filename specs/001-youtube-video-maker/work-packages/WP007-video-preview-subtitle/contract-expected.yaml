@@ -1,0 +1,294 @@
+# Contract Expected for WP007: 影片預覽與字幕編輯功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP007"
+  name: "影片預覽與字幕編輯功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  SubtitleStyle:
+    description: "字幕樣式設定"
+    source: "design-spec.yaml#data_models.SubtitleStyle"
+
+    fields:
+      position:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "enum"
+              value: ["bottom-center", "top-center", "center", "bottom-left", "bottom-right"]
+              error_message: "無效的字幕位置"
+        description: "字幕位置"
+        example: "bottom-center"
+
+      fontFamily:
+        type: "string"
+        required: false
+        description: "字型名稱"
+        example: "PingFang TC"
+
+      fontSize:
+        type: "integer"
+        required: false
+        validation:
+          rules:
+            - type: "minimum"
+              value: 12
+              error_message: "字體大小最小 12px"
+            - type: "maximum"
+              value: 72
+              error_message: "字體大小最大 72px"
+        description: "字體大小 (px)"
+        example: 32
+
+      textColor:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "pattern"
+              value: "^#[0-9A-Fa-f]{6}$"
+              error_message: "文字顏色格式錯誤"
+        description: "文字顏色 (Hex)"
+        example: "#FFFFFF"
+
+      shadowColor:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "pattern"
+              value: "^#[0-9A-Fa-f]{6}$"
+              error_message: "陰影顏色格式錯誤"
+        description: "陰影顏色 (Hex)"
+        example: "#000000"
+
+      borderColor:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "pattern"
+              value: "^#[0-9A-Fa-f]{6}$"
+              error_message: "邊框顏色格式錯誤"
+        description: "邊框顏色 (Hex)"
+        example: "#000000"
+
+      backgroundColor:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "pattern"
+              value: "^#[0-9A-Fa-f]{6}$"
+              error_message: "底色格式錯誤"
+        description: "底色 (Hex)"
+        example: "#00000080"
+
+      backgroundPadding:
+        type: "integer"
+        required: false
+        validation:
+          rules:
+            - type: "minimum"
+              value: 0
+              error_message: "內邊距最小 0px"
+            - type: "maximum"
+              value: 20
+              error_message: "內邊距最大 20px"
+        description: "底色內邊距 (px)"
+        example: 8
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  VideoPreviewPage:
+    name: "VideoPreviewPage"
+    type: "page"
+    description: "影片預覽頁面,編輯字幕樣式、Logo,下載縮圖底圖"
+    source: "design-spec.yaml#ui_components.VideoPreviewPage"
+
+    state:
+      previewVideoPath:
+        type: "string"
+        initial_value: null
+        description: "預覽影片路徑"
+      isPlaying:
+        type: "boolean"
+        initial_value: false
+        description: "是否正在播放"
+      currentTime:
+        type: "number"
+        initial_value: 0
+        description: "目前播放時間"
+      subtitleStyle:
+        type: "object"
+        initial_value: "預設字幕樣式"
+        description: "字幕樣式設定"
+      logoSettings:
+        type: "object"
+        initial_value: null
+        description: "Logo 設定"
+
+    elements:
+      - id: "video-player"
+        type: "video"
+        testId: "video-player"
+
+      - id: "play-pause-button"
+        type: "button"
+        label: "播放/暫停"
+        testId: "play-pause-btn"
+
+      - id: "subtitle-position-selector"
+        type: "select"
+        testId: "subtitle-position"
+        options: ["bottom-center", "top-center", "center", "bottom-left", "bottom-right"]
+
+      - id: "font-size-input"
+        type: "number"
+        testId: "font-size"
+        min: 12
+        max: 72
+
+      - id: "text-color-picker"
+        type: "color"
+        testId: "text-color"
+
+      - id: "download-thumbnail-button"
+        type: "button"
+        label: "下載縮圖底圖"
+        testId: "download-thumbnail-btn"
+
+      - id: "merge-video-button"
+        type: "button"
+        label: "合成影片"
+        testId: "merge-video-btn"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "fontSize"
+      rules:
+        - type: "minimum"
+          value: 12
+          error_message: "字體大小最小 12px"
+        - type: "maximum"
+          value: 72
+          error_message: "字體大小最大 72px"
+
+    - field: "backgroundPadding"
+      rules:
+        - type: "minimum"
+          value: 0
+          error_message: "內邊距最小 0px"
+        - type: "maximum"
+          value: 20
+          error_message: "內邊距最大 20px"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  validation:
+    invalid_subtitle_position: "無效的字幕位置"
+    font_size_too_small: "字體大小最小 12px"
+    font_size_too_large: "字體大小最大 72px"
+    invalid_text_color: "文字顏色格式錯誤"
+    invalid_shadow_color: "陰影顏色格式錯誤"
+    invalid_border_color: "邊框顏色格式錯誤"
+    invalid_background_color: "底色格式錯誤"
+    padding_too_small: "內邊距最小 0px"
+    padding_too_large: "內邊距最大 20px"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    frontend:
+      - component: "VideoPreviewPage"
+        tests:
+          - description: "渲染影片播放器和字幕編輯控制"
+            type: "render"
+          - description: "播放/暫停影片"
+            type: "interaction"
+          - description: "調整字幕樣式即時更新預覽"
+            type: "interaction"
+          - description: "下載縮圖底圖"
+            type: "interaction"
+          - description: "驗證字體大小範圍(12-72px)"
+            type: "validation"
+
+  integration_tests:
+    - description: "完整的字幕編輯流程"
+      steps:
+        - "進入影片預覽頁面"
+        - "生成預覽影片"
+        - "調整字幕位置為底部中央"
+        - "設定字體大小為 32px"
+        - "設定文字顏色為白色"
+        - "即時預覽字幕效果"
+        - "儲存字幕設定"
+
+  e2e_tests:
+    - description: "字幕樣式編輯與預覽"
+      steps:
+        - "進入影片預覽頁面"
+        - "調整字幕位置、字體大小、顏色"
+        - "播放影片驗證字幕顯示正確"
+        - "下載縮圖底圖"
+        - "驗證檔案已儲存"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  renderer_process:
+    - "src/renderer/pages/VideoPreviewPage/VideoPreviewPage.tsx"
+    - "src/renderer/pages/VideoPreviewPage/VideoPreviewPage.test.tsx"
+    - "src/renderer/pages/VideoPreviewPage/components/VideoPlayer.tsx"
+    - "src/renderer/pages/VideoPreviewPage/components/SubtitleStyleEditor.tsx"
+
+  tests:
+    - "tests/e2e/video-preview-subtitle.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US002"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/04-video-preview-page.md"
+    contracts:
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.SubtitleStyle"
+      - "design-spec.yaml#ui_components.VideoPreviewPage"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 SubtitleStyle 欄位名稱必須與契約一致"
+
+  validation_rules:
+    - "字體大小範圍驗證已實作(12-72px)"
+    - "內邊距範圍驗證已實作(0-20px)"
+    - "顏色格式驗證已實作(Hex)"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

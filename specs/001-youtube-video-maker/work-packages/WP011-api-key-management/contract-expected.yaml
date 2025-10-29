@@ -1,0 +1,148 @@
+# Contract Expected for WP011: API 金鑰管理功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP011"
+  name: "API 金鑰管理功能"
+  type: "full-stack-feature"
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  apiKey_get:
+    channel: "apiKey:get"
+    type: "invoke"
+    description: "從 macOS Keychain 讀取 API 金鑰"
+    source: "design-spec.yaml#api_endpoints.apiKey_get"
+
+    request:
+      schema:
+        type: "object"
+        required: ["service"]
+        properties:
+          service:
+            type: "string"
+            validation:
+              rules:
+                - type: "enum"
+                  value: ["google-tts", "gemini", "replicate", "did", "youtube"]
+                  error_message: "無效的服務名稱"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            apiKey:
+              type: "string"
+              description: "API 金鑰(若未設定則為 null)"
+            exists:
+              type: "boolean"
+              description: "金鑰是否存在"
+
+  apiKey_set:
+    channel: "apiKey:set"
+    type: "invoke"
+    description: "儲存 API 金鑰到 macOS Keychain"
+    source: "design-spec.yaml#api_endpoints.apiKey_set"
+
+    request:
+      schema:
+        type: "object"
+        required: ["service", "apiKey"]
+        properties:
+          service:
+            type: "string"
+            validation:
+              rules:
+                - type: "enum"
+                  value: ["google-tts", "gemini", "replicate", "did", "youtube"]
+          apiKey:
+            type: "string"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "API 金鑰不能為空"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  main_process:
+    - field: "service"
+      rules:
+        - type: "enum"
+          value: ["google-tts", "gemini", "replicate", "did", "youtube"]
+          error_message: "無效的服務名稱"
+
+    - field: "apiKey"
+      rules:
+        - type: "required"
+          error_message: "API 金鑰不能為空"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  keychain:
+    access_denied: "無法存取 Keychain"
+    save_failed: "儲存金鑰失敗"
+
+  validation:
+    invalid_service: "無效的服務名稱"
+    api_key_empty: "API 金鑰不能為空"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "KeychainService"
+        tests:
+          - description: "成功儲存 API 金鑰到 Keychain"
+            type: "success"
+          - description: "成功讀取 API 金鑰從 Keychain"
+            type: "success"
+          - description: "金鑰不存在時返回 null"
+            type: "edge-case"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/apiKeyHandlers.ts"
+    - "src/main/services/KeychainService.ts"
+    - "src/main/services/KeychainService.test.ts"
+
+  tests:
+    - "tests/e2e/api-key-management.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+  design_spec:
+    sections:
+      - "design-spec.yaml#api_endpoints.apiKey_get"
+      - "design-spec.yaml#api_endpoints.apiKey_set"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(apiKey:get, apiKey:set)"
+
+  validation_rules:
+    - "服務名稱 enum 驗證已實作"
+    - "API 金鑰必填驗證已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

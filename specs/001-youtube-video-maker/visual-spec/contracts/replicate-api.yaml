@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: Replicate FLUX API
+  description: |
+    Replicate FLUX 模型 API 契約定義
+    用於生成高品質的 AI 圖片
+  version: "1"
+  contact:
+    name: Replicate Documentation
+    url: https://replicate.com/docs
+
+servers:
+  - url: https://api.replicate.com/v1
+    description: Replicate API v1
+
+security:
+  - bearerAuth: []
+
+paths:
+  /predictions:
+    post:
+      summary: 建立圖片生成預測
+      description: 使用 FLUX 模型生成圖片
+      operationId: createPrediction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictionRequest'
+            example:
+              version: "black-forest-labs/flux-schnell"
+              input:
+                prompt: "A modern YouTube channel banner with colorful background, realistic style, 16:9, high quality"
+                width: 1920
+                height: 1080
+                num_outputs: 1
+                guidance_scale: 7.5
+                num_inference_steps: 50
+      responses:
+        '201':
+          description: 預測已建立
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prediction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /predictions/{prediction_id}:
+    get:
+      summary: 獲取預測狀態
+      description: 檢查圖片生成進度和結果
+      operationId: getPrediction
+      parameters:
+        - name: prediction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 預測狀態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prediction'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Replicate API Token
+
+  schemas:
+    PredictionRequest:
+      type: object
+      required:
+        - version
+        - input
+      properties:
+        version:
+          type: string
+          description: 模型版本 ID
+          example: "black-forest-labs/flux-schnell"
+        input:
+          $ref: '#/components/schemas/FluxInput'
+        webhook:
+          type: string
+          format: uri
+          description: Webhook URL (完成時通知)
+        webhook_events_filter:
+          type: array
+          items:
+            type: string
+            enum: ["start", "output", "logs", "completed"]
+
+    FluxInput:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          description: 圖片提示詞 (英文)
+          example: "A modern YouTube channel banner, realistic style, high quality"
+        width:
+          type: integer
+          description: 圖片寬度
+          default: 1920
+          example: 1920
+        height:
+          type: integer
+          description: 圖片高度
+          default: 1080
+          example: 1080
+        num_outputs:
+          type: integer
+          description: 生成圖片數量
+          default: 1
+          minimum: 1
+          maximum: 4
+        guidance_scale:
+          type: number
+          format: float
+          description: 提示詞遵循程度
+          default: 7.5
+          minimum: 1.0
+          maximum: 20.0
+        num_inference_steps:
+          type: integer
+          description: 推理步數 (越高品質越好但越慢)
+          default: 50
+          minimum: 1
+          maximum: 100
+        seed:
+          type: integer
+          description: 隨機種子 (可選,用於重現結果)
+        output_format:
+          type: string
+          description: 輸出格式
+          enum: ["png", "jpg", "webp"]
+          default: "png"
+        output_quality:
+          type: integer
+          description: 輸出品質 (1-100)
+          default: 90
+          minimum: 1
+          maximum: 100
+
+    Prediction:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 預測 ID
+          example: "abc123def456"
+        status:
+          type: string
+          description: 預測狀態
+          enum: ["starting", "processing", "succeeded", "failed", "canceled"]
+          example: "succeeded"
+        input:
+          $ref: '#/components/schemas/FluxInput'
+        output:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: 生成的圖片 URL 陣列
+          example:
+            - "https://replicate.delivery/pbxt/abc123.png"
+        error:
+          type: string
+          description: 錯誤訊息 (若失敗)
+        logs:
+          type: string
+          description: 生成日誌
+        metrics:
+          type: object
+          properties:
+            predict_time:
+              type: number
+              description: 預測時間 (秒)
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: 授權失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: 輸入驗證錯誤
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: 預測不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# 使用範例:
+#
+# 1. 建立預測
+# curl -X POST https://api.replicate.com/v1/predictions \
+#   -H "Authorization: Bearer YOUR_API_TOKEN" \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "version": "black-forest-labs/flux-schnell",
+#     "input": {
+#       "prompt": "A cat wearing a wizard hat, realistic photo",
+#       "width": 1920,
+#       "height": 1080
+#     }
+#   }'
+#
+# 2. 獲取結果 (輪詢)
+# curl https://api.replicate.com/v1/predictions/{prediction_id} \
+#   -H "Authorization: Bearer YOUR_API_TOKEN"
+#
+# 費用計算:
+# - FLUX Schnell: ~$0.003 / 圖片
+# - FLUX Dev: ~$0.05 / 圖片
+# - FLUX Pro: ~$0.10 / 圖片

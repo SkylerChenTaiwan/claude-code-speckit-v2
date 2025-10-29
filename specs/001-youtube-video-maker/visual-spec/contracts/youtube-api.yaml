@@ -1,0 +1,359 @@
+openapi: 3.0.3
+info:
+  title: YouTube Data API v3
+  description: |
+    YouTube Data API v3 契約定義
+    用於上傳影片、設定影片資訊、管理頻道和播放清單
+  version: v3
+  contact:
+    name: YouTube Data API Documentation
+    url: https://developers.google.com/youtube/v3
+
+servers:
+  - url: https://www.googleapis.com/youtube/v3
+    description: YouTube Data API v3
+  - url: https://www.googleapis.com/upload/youtube/v3
+    description: YouTube Upload API v3
+
+security:
+  - oauth2: []
+
+paths:
+  /videos:
+    post:
+      summary: 上傳影片
+      description: 上傳影片檔案並設定影片資訊
+      operationId: insertVideo
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 要設定的資源部分
+          example: "snippet,status"
+        - name: uploadType
+          in: query
+          schema:
+            type: string
+            enum: ["multipart", "resumable"]
+          description: 上傳類型
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Video'
+            example:
+              snippet:
+                title: "我的影片標題"
+                description: "影片描述內容..."
+                tags: ["教學", "Python", "程式設計"]
+                categoryId: "27"
+              status:
+                privacyStatus: "public"
+                publishAt: "2025-10-30T10:00:00Z"
+      responses:
+        '200':
+          description: 影片上傳成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Video'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/QuotaExceeded'
+
+  /thumbnails/set:
+    post:
+      summary: 設定自訂縮圖
+      description: 上傳自訂縮圖圖片
+      operationId: setThumbnail
+      parameters:
+        - name: videoId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 影片 ID
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: 縮圖設定成功
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /channels:
+    get:
+      summary: 獲取頻道資訊
+      description: 獲取使用者的頻道列表
+      operationId: listChannels
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "snippet,statistics"
+        - name: mine
+          in: query
+          schema:
+            type: boolean
+          description: 獲取目前使用者的頻道
+      responses:
+        '200':
+          description: 頻道列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelListResponse'
+
+  /playlists:
+    post:
+      summary: 建立播放清單
+      description: 建立新的播放清單
+      operationId: insertPlaylist
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "snippet,status"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Playlist'
+      responses:
+        '200':
+          description: 播放清單建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Playlist'
+
+  /playlistItems:
+    post:
+      summary: 新增影片到播放清單
+      description: 將影片加入播放清單
+      operationId: insertPlaylistItem
+      parameters:
+        - name: part
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "snippet"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaylistItem'
+      responses:
+        '200':
+          description: 影片已加入播放清單
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://accounts.google.com/o/oauth2/v2/auth
+          tokenUrl: https://oauth2.googleapis.com/token
+          scopes:
+            https://www.googleapis.com/auth/youtube.upload: 上傳影片
+            https://www.googleapis.com/auth/youtube: 管理 YouTube 帳號
+            https://www.googleapis.com/auth/youtube.readonly: 唯讀存取
+
+  schemas:
+    Video:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 影片 ID
+        snippet:
+          $ref: '#/components/schemas/VideoSnippet'
+        status:
+          $ref: '#/components/schemas/VideoStatus'
+        contentDetails:
+          type: object
+
+    VideoSnippet:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 100
+          description: 影片標題
+        description:
+          type: string
+          maxLength: 5000
+          description: 影片描述
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 500
+          description: 標籤
+        categoryId:
+          type: string
+          description: 分類 ID
+          example: "27"
+        defaultLanguage:
+          type: string
+          description: 預設語言
+          example: "zh-TW"
+
+    VideoStatus:
+      type: object
+      properties:
+        uploadStatus:
+          type: string
+          enum: ["uploaded", "processed", "failed", "rejected", "deleted"]
+        privacyStatus:
+          type: string
+          enum: ["public", "unlisted", "private"]
+          description: 隱私設定
+        publishAt:
+          type: string
+          format: date-time
+          description: 排程發布時間
+        license:
+          type: string
+          enum: ["youtube", "creativeCommon"]
+        embeddable:
+          type: boolean
+        publicStatsViewable:
+          type: boolean
+
+    ChannelListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Channel'
+
+    Channel:
+      type: object
+      properties:
+        id:
+          type: string
+        snippet:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+        statistics:
+          type: object
+          properties:
+            subscriberCount:
+              type: string
+            videoCount:
+              type: string
+            viewCount:
+              type: string
+
+    Playlist:
+      type: object
+      properties:
+        id:
+          type: string
+        snippet:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+        status:
+          type: object
+          properties:
+            privacyStatus:
+              type: string
+              enum: ["public", "unlisted", "private"]
+
+    PlaylistItem:
+      type: object
+      properties:
+        snippet:
+          type: object
+          properties:
+            playlistId:
+              type: string
+            resourceId:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  example: "youtube#video"
+                videoId:
+                  type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            errors:
+              type: array
+              items:
+                type: object
+
+  responses:
+    Unauthorized:
+      description: 授權失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    QuotaExceeded:
+      description: API 配額超限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# 配額計算:
+# - 每日配額: 10,000 單位
+# - 影片上傳: 1600 單位
+# - 設定縮圖: 50 單位
+# - 建立播放清單: 50 單位
+# - 新增播放清單項目: 50 單位
+#
+# OAuth 2.0 流程:
+# 1. 導向授權 URL
+# 2. 使用者授權
+# 3. 接收授權碼
+# 4. 交換 Access Token
+# 5. 使用 Access Token 呼叫 API
+#
+# 可恢復上傳 (Resumable Upload):
+# 1. 初始化上傳 (取得 upload_url)
+# 2. 分塊上傳檔案
+# 3. 檢查上傳進度
+# 4. 完成上傳
