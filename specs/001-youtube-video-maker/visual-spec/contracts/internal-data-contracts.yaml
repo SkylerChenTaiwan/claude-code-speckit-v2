@@ -1,0 +1,637 @@
+# 內部資料契約 (Internal Data Contracts)
+
+# 本檔案定義應用程式內部各模組之間的資料格式契約
+# 這些不是外部 API,而是前端-後端之間的資料交換格式
+
+## 專案檔案格式 (Project File Format)
+# 檔案名稱: {project-name}.json
+# 儲存位置: 使用者指定位置 (預設 ~/Documents/YTMaker3)
+
+ProjectFile:
+  type: object
+  required:
+    - version
+    - projectId
+    - projectName
+    - createdAt
+    - updatedAt
+    - currentStage
+    - scriptContent
+    - settings
+  properties:
+    version:
+      type: string
+      description: 專案檔案格式版本
+      example: "1.0"
+
+    projectId:
+      type: string
+      format: uuid
+      description: 專案唯一識別碼
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    projectName:
+      type: string
+      description: 專案名稱
+      minLength: 1
+      maxLength: 100
+      example: "我的影片專案"
+
+    createdAt:
+      type: string
+      format: date-time
+      description: 專案建立時間
+      example: "2025-10-29T10:30:00Z"
+
+    updatedAt:
+      type: string
+      format: date-time
+      description: 最後更新時間
+      example: "2025-10-29T14:20:00Z"
+
+    currentStage:
+      type: string
+      enum:
+        - script-input
+        - script-editor
+        - video-preview
+        - youtube-upload
+        - completed
+      description: 目前所在階段
+      example: "script-editor"
+
+    scriptContent:
+      type: string
+      description: 原始文稿內容
+      example: "這是我的影片文稿內容..."
+
+    settings:
+      $ref: '#/ProjectSettings'
+
+    generatedAssets:
+      $ref: '#/GeneratedAssets'
+
+## 專案設定 (Project Settings)
+
+ProjectSettings:
+  type: object
+  required:
+    - voiceId
+    - outputPath
+  properties:
+    voiceId:
+      type: string
+      description: 選擇的 Google TTS 語音 ID
+      example: "zh-TW-HsiaoChenNeural"
+
+    outputPath:
+      type: string
+      description: 輸出檔案儲存路徑
+      example: "~/Documents/YTMaker3/我的影片專案"
+
+    imageStyle:
+      type: string
+      enum:
+        - realistic
+        - cute-illustration
+        - chinese-classic
+        - children
+      description: 圖片風格選擇
+      example: "realistic"
+
+    didSettings:
+      $ref: '#/DIDSettings'
+
+    subtitleStyle:
+      $ref: '#/SubtitleStyle'
+
+    logoSettings:
+      $ref: '#/LogoSettings'
+
+## D-ID 設定 (D-ID Settings)
+
+DIDSettings:
+  type: object
+  required:
+    - enabled
+  properties:
+    enabled:
+      type: boolean
+      description: 是否啟用 D-ID 對嘴功能
+      example: true
+
+    position:
+      type: string
+      enum:
+        - none
+        - opening-only
+        - ending-only
+        - both
+      description: 對嘴影片使用位置
+      example: "opening-only"
+
+    portraitImagePath:
+      type: string
+      description: 上傳的人像圖片路徑
+      example: "~/Documents/YTMaker3/我的影片專案/portrait.png"
+
+## 字幕樣式 (Subtitle Style)
+
+SubtitleStyle:
+  type: object
+  properties:
+    position:
+      type: string
+      enum:
+        - bottom-center
+        - top-center
+        - center
+        - bottom-left
+        - bottom-right
+      description: 字幕位置
+      default: "bottom-center"
+
+    fontFamily:
+      type: string
+      description: 字型名稱
+      example: "PingFang TC"
+      default: "PingFang TC"
+
+    fontSize:
+      type: integer
+      description: 字體大小 (px)
+      minimum: 12
+      maximum: 72
+      default: 32
+
+    textColor:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      description: 文字顏色 (Hex)
+      example: "#FFFFFF"
+      default: "#FFFFFF"
+
+    shadowColor:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      description: 陰影顏色 (Hex)
+      example: "#000000"
+      default: "#000000"
+
+    borderColor:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      description: 邊框顏色 (Hex)
+      example: "#000000"
+
+    backgroundColor:
+      type: string
+      pattern: "^#[0-9A-Fa-f]{6}$"
+      description: 底色 (Hex)
+      example: "#00000080"
+
+    backgroundPadding:
+      type: integer
+      description: 底色內邊距 (px)
+      minimum: 0
+      maximum: 20
+      default: 8
+
+## Logo 設定 (Logo Settings)
+
+LogoSettings:
+  type: object
+  properties:
+    enabled:
+      type: boolean
+      description: 是否啟用 Logo
+      example: true
+
+    imagePath:
+      type: string
+      description: Logo 圖片路徑
+      example: "~/Documents/YTMaker3/logo.png"
+
+    position:
+      $ref: '#/Position2D'
+
+    scale:
+      type: number
+      description: 縮放比例
+      minimum: 0.1
+      maximum: 2.0
+      default: 1.0
+
+## 2D 位置 (Position 2D)
+
+Position2D:
+  type: object
+  required:
+    - x
+    - y
+  properties:
+    x:
+      type: integer
+      description: X 座標 (px,左上角為 0)
+      minimum: 0
+
+    y:
+      type: integer
+      description: Y 座標 (px,左上角為 0)
+      minimum: 0
+
+## 生成的資源 (Generated Assets)
+
+GeneratedAssets:
+  type: object
+  properties:
+    audioFile:
+      type: string
+      description: 生成的音檔路徑
+      example: "~/Documents/YTMaker3/我的影片專案/audio.mp3"
+
+    timecodes:
+      type: array
+      items:
+        $ref: '#/Timecode'
+      description: 時間標記陣列
+
+    script:
+      $ref: '#/Script'
+
+    images:
+      type: array
+      items:
+        $ref: '#/GeneratedImage'
+      description: 生成的圖片陣列
+
+    didVideos:
+      type: array
+      items:
+        $ref: '#/DIDVideo'
+      description: 生成的對嘴影片陣列
+
+    finalVideo:
+      type: string
+      description: 最終合成的影片路徑
+      example: "~/Documents/YTMaker3/我的影片專案/final-video.mp4"
+
+## 時間標記 (Timecode)
+
+Timecode:
+  type: object
+  required:
+    - text
+    - startTime
+    - endTime
+  properties:
+    text:
+      type: string
+      description: 該時間段的文字內容
+      example: "這是第一段文字"
+
+    startTime:
+      type: number
+      description: 開始時間 (秒)
+      example: 0.0
+
+    endTime:
+      type: number
+      description: 結束時間 (秒)
+      example: 2.5
+
+## 腳本 (Script)
+
+Script:
+  type: object
+  required:
+    - generatedAt
+    - systemPrompt
+    - paragraphs
+  properties:
+    generatedAt:
+      type: string
+      format: date-time
+      description: 腳本生成時間
+      example: "2025-10-29T10:35:00Z"
+
+    systemPrompt:
+      type: string
+      description: 使用的 Gemini system prompt
+      example: "你是一個專業的影片腳本生成助手..."
+
+    paragraphs:
+      type: array
+      items:
+        $ref: '#/ScriptParagraph'
+      description: 腳本段落陣列
+
+## 腳本段落 (Script Paragraph)
+
+ScriptParagraph:
+  type: object
+  required:
+    - paragraphId
+    - text
+    - startTime
+    - endTime
+    - imagePrompt
+  properties:
+    paragraphId:
+      type: string
+      description: 段落唯一識別碼
+      example: "para-001"
+
+    text:
+      type: string
+      description: 段落文字內容
+      example: "歡迎來到我的頻道,今天要分享..."
+
+    startTime:
+      type: number
+      description: 段落開始時間 (秒)
+      example: 0.0
+
+    endTime:
+      type: number
+      description: 段落結束時間 (秒)
+      example: 5.2
+
+    imagePrompt:
+      type: string
+      description: 圖片生成提示詞 (英文)
+      example: "A modern YouTube channel banner with colorful background"
+
+    imagePromptZh:
+      type: string
+      description: 圖片生成提示詞 (中文,供使用者檢視)
+      example: "一個色彩繽紛的現代 YouTube 頻道橫幅"
+
+## 生成的圖片 (Generated Image)
+
+GeneratedImage:
+  type: object
+  required:
+    - paragraphId
+    - imagePath
+    - generatedAt
+  properties:
+    paragraphId:
+      type: string
+      description: 對應的段落 ID
+      example: "para-001"
+
+    imagePath:
+      type: string
+      description: 圖片檔案路徑
+      example: "~/Documents/YTMaker3/我的影片專案/images/para-001.png"
+
+    prompt:
+      type: string
+      description: 實際使用的完整提示詞
+      example: "A modern YouTube channel banner with colorful background, realistic style, 16:9, high quality"
+
+    generatedAt:
+      type: string
+      format: date-time
+      description: 圖片生成時間
+      example: "2025-10-29T10:40:00Z"
+
+    cacheHash:
+      type: string
+      description: 提示詞的 SHA-256 hash (用於快取)
+      example: "a3f5c8b2e1d4..."
+
+## D-ID 對嘴影片 (D-ID Video)
+
+DIDVideo:
+  type: object
+  required:
+    - paragraphId
+    - videoPath
+    - generatedAt
+  properties:
+    paragraphId:
+      type: string
+      description: 對應的段落 ID
+      example: "para-001"
+
+    videoPath:
+      type: string
+      description: 對嘴影片檔案路徑
+      example: "~/Documents/YTMaker3/我的影片專案/did-videos/para-001.mp4"
+
+    generatedAt:
+      type: string
+      format: date-time
+      description: 影片生成時間
+      example: "2025-10-29T10:45:00Z"
+
+    duration:
+      type: number
+      description: 影片長度 (秒)
+      example: 5.2
+
+## API 用量統計 (API Usage Statistics)
+
+APIUsageStats:
+  type: object
+  required:
+    - gemini
+    - googleTTS
+    - replicate
+  properties:
+    gemini:
+      $ref: '#/GeminiUsage'
+
+    googleTTS:
+      $ref: '#/GoogleTTSUsage'
+
+    replicate:
+      $ref: '#/ReplicateUsage'
+
+    did:
+      $ref: '#/DIDUsage'
+
+    youtube:
+      $ref: '#/YouTubeUsage'
+
+    totalCost:
+      type: number
+      description: 總計費用 (USD)
+      example: 0.85
+
+## Gemini 用量 (Gemini Usage)
+
+GeminiUsage:
+  type: object
+  properties:
+    requests:
+      type: integer
+      description: API 呼叫次數
+      example: 1
+
+    inputTokens:
+      type: integer
+      description: 輸入 token 數
+      example: 500
+
+    outputTokens:
+      type: integer
+      description: 輸出 token 數
+      example: 1200
+
+    cost:
+      type: number
+      description: 費用 (USD)
+      example: 0.02
+
+## Google TTS 用量 (Google TTS Usage)
+
+GoogleTTSUsage:
+  type: object
+  properties:
+    characters:
+      type: integer
+      description: 合成的字數
+      example: 500
+
+    cost:
+      type: number
+      description: 費用 (USD)
+      example: 0.01
+
+## Replicate 用量 (Replicate Usage)
+
+ReplicateUsage:
+  type: object
+  properties:
+    images:
+      type: integer
+      description: 生成的圖片數量
+      example: 5
+
+    cost:
+      type: number
+      description: 費用 (USD)
+      example: 0.50
+
+## D-ID 用量 (D-ID Usage)
+
+DIDUsage:
+  type: object
+  properties:
+    videos:
+      type: integer
+      description: 生成的對嘴影片數量
+      example: 1
+
+    totalDuration:
+      type: number
+      description: 影片總長度 (秒)
+      example: 5.2
+
+    cost:
+      type: number
+      description: 費用 (USD)
+      example: 0.30
+
+## YouTube 用量 (YouTube Usage)
+
+YouTubeUsage:
+  type: object
+  properties:
+    quotaUsed:
+      type: integer
+      description: 使用的 API 配額
+      example: 1600
+
+## 範本格式 (Template Format)
+# 檔案名稱: {template-name}.template.json
+# 儲存位置: ~/Library/Application Support/YTMaker3/templates/
+
+TemplateFile:
+  type: object
+  required:
+    - templateId
+    - templateName
+    - createdAt
+    - settings
+  properties:
+    templateId:
+      type: string
+      format: uuid
+      description: 範本唯一識別碼
+      example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    templateName:
+      type: string
+      description: 範本名稱
+      example: "我的預設樣式"
+
+    createdAt:
+      type: string
+      format: date-time
+      description: 範本建立時間
+      example: "2025-10-29T15:00:00Z"
+
+    settings:
+      type: object
+      properties:
+        imageStyle:
+          type: string
+          enum:
+            - realistic
+            - cute-illustration
+            - chinese-classic
+            - children
+          example: "realistic"
+
+        subtitleStyle:
+          $ref: '#/SubtitleStyle'
+
+        logoSettings:
+          $ref: '#/LogoSettings'
+
+## 快取資料格式 (Cache Data Format)
+# 儲存位置: ~/Library/Caches/YTMaker3/images/
+
+ImageCacheEntry:
+  type: object
+  required:
+    - cacheHash
+    - imagePath
+    - createdAt
+    - lastAccessedAt
+  properties:
+    cacheHash:
+      type: string
+      description: 提示詞的 SHA-256 hash
+      example: "a3f5c8b2e1d4..."
+
+    imagePath:
+      type: string
+      description: 快取圖片檔案路徑
+      example: "~/Library/Caches/YTMaker3/images/a3f5c8b2e1d4.png"
+
+    prompt:
+      type: string
+      description: 原始提示詞
+      example: "A modern YouTube channel banner..."
+
+    createdAt:
+      type: string
+      format: date-time
+      description: 快取建立時間
+      example: "2025-10-29T10:40:00Z"
+
+    lastAccessedAt:
+      type: string
+      format: date-time
+      description: 最後存取時間
+      example: "2025-10-29T14:20:00Z"
+
+    fileSize:
+      type: integer
+      description: 檔案大小 (bytes)
+      example: 2048000

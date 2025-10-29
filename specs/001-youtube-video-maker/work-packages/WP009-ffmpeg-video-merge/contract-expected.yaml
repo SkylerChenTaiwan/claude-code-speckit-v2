@@ -1,0 +1,123 @@
+# Contract Expected for WP009: FFmpeg 影片合成功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP009"
+  name: "FFmpeg 影片合成功能"
+  type: "full-stack-feature"
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  ffmpeg_mergeVideo:
+    channel: "ffmpeg:mergeVideo"
+    type: "invoke"
+    description: "合成最終影片(圖片+音檔+字幕+Logo)"
+    source: "design-spec.yaml#api_endpoints.ffmpeg_mergeVideo"
+
+    request:
+      schema:
+        type: "object"
+        required: ["segments", "outputPath"]
+        properties:
+          segments:
+            type: "array"
+            description: "影片片段列表"
+          audioPath:
+            type: "string"
+            description: "配音音檔路徑"
+          subtitles:
+            type: "array"
+            description: "字幕列表"
+          subtitleStyle:
+            type: "object"
+            description: "字幕樣式"
+          logo:
+            type: "object"
+            description: "Logo 設定"
+          outputPath:
+            type: "string"
+            description: "輸出影片路徑"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            videoPath:
+              type: "string"
+              description: "合成的影片路徑"
+            duration:
+              type: "number"
+              description: "影片長度(秒)"
+            fileSize:
+              type: "integer"
+              description: "檔案大小(bytes)"
+            error:
+              type: "string"
+
+      errors:
+        - error_message: "合成失敗"
+          condition: "FFmpeg 執行失敗"
+        - error_message: "儲存空間不足"
+          condition: "磁碟空間不足"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  ffmpeg:
+    merge_failed: "合成失敗"
+    disk_full: "儲存空間不足"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "FFmpegService"
+        tests:
+          - description: "合成影片包含圖片、音檔、字幕、Logo"
+            type: "success"
+          - description: "字幕同步時間標記正確"
+            type: "validation"
+          - description: "FFmpeg 錯誤時正確處理"
+            type: "error"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/ffmpegHandlers.ts"
+    - "src/main/ipc/ffmpegHandlers.test.ts"
+    - "src/main/services/FFmpegService.ts"
+    - "src/main/services/FFmpegService.test.ts"
+
+  tests:
+    - "tests/e2e/ffmpeg-video-merge.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+  design_spec:
+    sections:
+      - "design-spec.yaml#api_endpoints.ffmpeg_mergeVideo"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(ffmpeg:mergeVideo)"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

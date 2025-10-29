@@ -1,0 +1,373 @@
+# Contract Expected for WP005: Replicate 圖片生成功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP005"
+  name: "Replicate 圖片生成功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  GeneratedImage:
+    description: "生成的圖片"
+    source: "design-spec.yaml#data_models.GeneratedImage"
+
+    fields:
+      paragraphId:
+        type: "string"
+        required: true
+        description: "對應的段落 ID"
+        example: "para-001"
+
+      imagePath:
+        type: "string"
+        required: true
+        description: "圖片檔案路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/images/para-001.png"
+
+      prompt:
+        type: "string"
+        required: true
+        description: "實際使用的完整提示詞"
+        example: "A modern YouTube channel banner with colorful background, realistic style, 16:9, high quality"
+
+      generatedAt:
+        type: "timestamp"
+        required: true
+        description: "圖片生成時間"
+        example: "2025-10-29T10:40:00Z"
+
+      cacheHash:
+        type: "string"
+        required: false
+        description: "提示詞的 SHA-256 hash (用於快取)"
+        example: "a3f5c8b2e1d4..."
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  replicate_generateImage:
+    channel: "replicate:generateImage"
+    type: "invoke"
+    description: "生成單張圖片"
+    source: "design-spec.yaml#api_endpoints.replicate_generateImage"
+
+    request:
+      schema:
+        type: "object"
+        required: ["prompt", "outputPath"]
+        properties:
+          prompt:
+            type: "string"
+            description: "圖片生成提示詞(英文)"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "圖片提示詞不能為空"
+          style:
+            type: "string"
+            description: "圖片風格"
+            validation:
+              rules:
+                - type: "enum"
+                  value: ["realistic", "cute-illustration", "chinese-classic", "children"]
+                  error_message: "無效的圖片風格"
+          outputPath:
+            type: "string"
+            description: "圖片儲存路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "輸出路徑不能為空"
+          cacheHash:
+            type: "string"
+            description: "快取 hash"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            imagePath:
+              type: "string"
+              description: "生成的圖片路徑"
+            fromCache:
+              type: "boolean"
+              description: "是否從快取取得"
+            error:
+              type: "string"
+              description: "錯誤訊息(若有)"
+        example:
+          imagePath: "~/Documents/YTMaker3/我的影片專案/images/para-001.png"
+          fromCache: false
+          error: null
+
+      errors:
+        - error_message: "API 連線失敗"
+          condition: "網路錯誤或 Replicate API 無回應"
+        - error_message: "API 金鑰無效或已過期"
+          condition: "401 錯誤"
+        - error_message: "API 請求過於頻繁"
+          condition: "429 錯誤"
+        - error_message: "圖片生成失敗"
+          condition: "Replicate API 返回錯誤"
+
+  replicate_batchGenerate:
+    channel: "replicate:batchGenerate"
+    type: "invoke"
+    description: "批次生成多張圖片(含並發控制)"
+    source: "design-spec.yaml#api_endpoints.replicate_batchGenerate"
+
+    request:
+      schema:
+        type: "object"
+        required: ["requests"]
+        properties:
+          requests:
+            type: "array"
+            description: "圖片生成請求陣列"
+            items:
+              type: "object"
+              properties:
+                prompt:
+                  type: "string"
+                style:
+                  type: "string"
+                outputPath:
+                  type: "string"
+                cacheHash:
+                  type: "string"
+          concurrency:
+            type: "integer"
+            description: "並發數量"
+            example: 3
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            results:
+              type: "array"
+              description: "生成結果陣列"
+              items:
+                type: "object"
+                properties:
+                  imagePath:
+                    type: "string"
+                  fromCache:
+                    type: "boolean"
+            errors:
+              type: "array"
+              description: "錯誤陣列"
+              items:
+                type: "object"
+                properties:
+                  paragraphId:
+                    type: "string"
+                  error:
+                    type: "string"
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  ImageGenerationProgress:
+    name: "ImageGenerationProgress"
+    type: "component"
+    description: "圖片生成進度顯示元件"
+
+    state:
+      total:
+        type: "integer"
+        initial_value: 0
+        description: "總圖片數量"
+      completed:
+        type: "integer"
+        initial_value: 0
+        description: "已完成數量"
+      progress:
+        type: "number"
+        initial_value: 0
+        description: "進度百分比 (0-100)"
+      currentImage:
+        type: "string"
+        initial_value: null
+        description: "目前正在生成的圖片提示詞"
+
+    elements:
+      - id: "progress-bar"
+        type: "progress"
+        testId: "image-generation-progress"
+
+      - id: "progress-text"
+        type: "text"
+        testId: "progress-text"
+        content: "{completed} / {total} 張圖片已生成"
+
+      - id: "current-image-text"
+        type: "text"
+        testId: "current-image-text"
+        content: "正在生成: {currentImage}"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  main_process:
+    - field: "prompt"
+      rules:
+        - type: "required"
+          error_message: "圖片提示詞不能為空"
+
+    - field: "style"
+      rules:
+        - type: "enum"
+          value: ["realistic", "cute-illustration", "chinese-classic", "children"]
+          error_message: "無效的圖片風格"
+
+    - field: "outputPath"
+      rules:
+        - type: "required"
+          error_message: "輸出路徑不能為空"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  api:
+    connection_failed: "API 連線失敗"
+    invalid_api_key: "API 金鑰無效或已過期"
+    rate_limit: "API 請求過於頻繁"
+    generation_failed: "圖片生成失敗"
+
+  validation:
+    prompt_empty: "圖片提示詞不能為空"
+    invalid_style: "無效的圖片風格"
+    output_path_empty: "輸出路徑不能為空"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "ReplicateService"
+        tests:
+          - description: "生成單張圖片成功"
+            type: "success"
+          - description: "檢查快取避免重複生成"
+            type: "cache"
+          - description: "單張圖片失敗時自動重試 2 次"
+            type: "retry"
+          - description: "批次生成控制並發數量(concurrency: 3)"
+            type: "concurrency"
+          - description: "API 金鑰無效時返回錯誤"
+            type: "error"
+          - description: "Rate Limit 時等待後重試"
+            type: "rate-limit"
+
+      - component: "replicateHandlers"
+        tests:
+          - description: "replicate:generateImage 成功生成圖片"
+            type: "success"
+          - description: "replicate:batchGenerate 批次生成多張圖片"
+            type: "success"
+          - description: "生成失敗時返回詳細錯誤訊息"
+            type: "error"
+
+    frontend:
+      - component: "ImageGenerationProgress"
+        tests:
+          - description: "渲染進度條和進度文字"
+            type: "render"
+          - description: "進度更新時即時顯示"
+            type: "interaction"
+          - description: "顯示目前正在生成的圖片提示詞"
+            type: "render"
+
+  integration_tests:
+    - description: "完整的圖片生成流程"
+      steps:
+        - "腳本編輯頁面點擊生成媒體"
+        - "呼叫 replicate:batchGenerate"
+        - "並發生成 3 張圖片"
+        - "檢查快取避免重複生成"
+        - "所有圖片生成完成"
+        - "儲存圖片路徑到專案檔案"
+
+  e2e_tests:
+    - description: "批次圖片生成與快取"
+      steps:
+        - "編輯 5 個段落的圖片提示詞"
+        - "點擊生成媒體"
+        - "驗證進度條顯示 0/5"
+        - "等待圖片生成完成"
+        - "驗證進度條顯示 5/5"
+        - "驗證所有圖片已儲存"
+        - "修改其中 1 個提示詞,重新生成"
+        - "驗證只生成 1 張圖片(其他 4 張使用快取)"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/replicateHandlers.ts"
+    - "src/main/ipc/replicateHandlers.test.ts"
+    - "src/main/services/ReplicateService.ts"
+    - "src/main/services/ReplicateService.test.ts"
+    - "src/main/utils/concurrentQueue.ts"
+    - "src/main/utils/cacheManager.ts"
+
+  renderer_process:
+    - "src/renderer/components/feedback/ImageGenerationProgress.tsx"
+    - "src/renderer/components/feedback/ImageGenerationProgress.test.tsx"
+
+  tests:
+    - "tests/e2e/image-generation.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+    - "US002"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/03-script-editor-page.md"
+    contracts:
+      - "visual-spec/contracts/electron-ipc.yaml"
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.GeneratedImage"
+      - "design-spec.yaml#api_endpoints.replicate_generateImage"
+      - "design-spec.yaml#api_endpoints.replicate_batchGenerate"
+      - "design-spec.yaml#testing_requirements.unit_tests.ReplicateService"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 GeneratedImage 欄位名稱必須與契約一致"
+
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(replicate:generateImage, replicate:batchGenerate)"
+
+  request_response:
+    - "Request/Response 欄位名稱必須完全一致"
+
+  business_logic:
+    - "快取機制已實作(使用 SHA-256 hash)"
+    - "並發控制已實作(預設 3 個)"
+    - "失敗自動重試 2 次已實作"
+    - "Rate Limit 等待重試已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

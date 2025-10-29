@@ -1,0 +1,2156 @@
+# Design Specification (Layer 3: Technical Design)
+# Generated from: visual-spec/ (human-reviewed)
+# Generated: 2025-10-29
+# Version: 1.0.0
+
+version: "1.0.0"
+
+feature:
+  id: "001-youtube-video-maker"
+  name: "YouTube 影片快速製作工具"
+  branch: "001-youtube-video-maker"
+  description: "macOS 桌面應用程式,支援 1-30 分鐘影片製作,使用 Google TTS、Gemini、Replicate FLUX、D-ID 等服務,提供完整的文稿到 YouTube 發布流程"
+
+# ==================== TECHNICAL CONTEXT ====================
+
+technical_context:
+  language: "typescript"
+
+  framework:
+    backend: "electron"  # Electron Main Process
+    frontend: "react"    # Electron Renderer Process
+
+  database: "json-file-storage"  # 專案檔案使用 JSON 格式儲存
+
+  testing:
+    backend:
+      framework: "jest"
+      api_testing: "supertest"
+      coverage_requirement: 80
+    frontend:
+      framework: "vitest"
+      ui_testing: "react-testing-library"
+      e2e_testing: "playwright"
+      coverage_requirement: 80
+
+  project_structure: |
+    youtube-maker/
+    ├── src/
+    │   ├── main/                      # Electron Main Process
+    │   │   ├── main.ts
+    │   │   ├── ipc/                   # IPC Handlers
+    │   │   │   ├── fileHandlers.ts
+    │   │   │   ├── ttsHandlers.ts
+    │   │   │   ├── geminiHandlers.ts
+    │   │   │   ├── replicateHandlers.ts
+    │   │   │   ├── didHandlers.ts
+    │   │   │   ├── ffmpegHandlers.ts
+    │   │   │   ├── youtubeHandlers.ts
+    │   │   │   ├── apiKeyHandlers.ts
+    │   │   │   └── cacheHandlers.ts
+    │   │   ├── services/              # 後端服務層
+    │   │   │   ├── TTSService.ts
+    │   │   │   ├── GeminiService.ts
+    │   │   │   ├── ReplicateService.ts
+    │   │   │   ├── DIDService.ts
+    │   │   │   ├── FFmpegService.ts
+    │   │   │   ├── YouTubeService.ts
+    │   │   │   └── KeychainService.ts
+    │   │   └── utils/
+    │   │       ├── logger.ts
+    │   │       ├── retry.ts
+    │   │       └── concurrentQueue.ts
+    │   ├── preload/                   # Electron Preload Scripts
+    │   │   ├── preload.ts
+    │   │   └── types.ts
+    │   └── renderer/                  # React App
+    │       ├── pages/
+    │       │   ├── HomePage/
+    │       │   ├── ScriptInputPage/
+    │       │   ├── ScriptEditorPage/
+    │       │   ├── VideoPreviewPage/
+    │       │   ├── YouTubeUploadPage/
+    │       │   └── CompletionPage/
+    │       ├── components/
+    │       │   ├── common/
+    │       │   ├── layout/
+    │       │   ├── feedback/
+    │       │   └── domain/
+    │       ├── stores/
+    │       │   ├── projectStore.ts
+    │       │   ├── generationStore.ts
+    │       │   └── settingsStore.ts
+    │       ├── services/
+    │       └── hooks/
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  ProjectFile:
+    description: "專案檔案格式,儲存為 JSON 檔案"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#ProjectFile"
+
+    fields:
+      version:
+        type: string
+        required: true
+        description: "專案檔案格式版本"
+        example: "1.0"
+
+      projectId:
+        type: uuid
+        required: true
+        unique: true
+        description: "專案唯一識別碼"
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+      projectName:
+        type: string
+        required: true
+        validation:
+          - "minLength: 1"
+          - "maxLength: 100"
+        description: "專案名稱"
+        example: "我的影片專案"
+
+      createdAt:
+        type: timestamp
+        required: true
+        description: "專案建立時間"
+        example: "2025-10-29T10:30:00Z"
+
+      updatedAt:
+        type: timestamp
+        required: true
+        description: "最後更新時間"
+        example: "2025-10-29T14:20:00Z"
+
+      currentStage:
+        type: string
+        required: true
+        validation:
+          - "enum: [script-input, script-editor, video-preview, youtube-upload, completed]"
+        description: "目前所在階段"
+        example: "script-editor"
+
+      scriptContent:
+        type: string
+        required: true
+        description: "原始文稿內容"
+        example: "這是我的影片文稿內容..."
+
+      settings:
+        type: object
+        required: true
+        description: "專案設定"
+        ref: "ProjectSettings"
+
+      generatedAssets:
+        type: object
+        required: false
+        description: "生成的資源"
+        ref: "GeneratedAssets"
+
+    database:
+      table: "N/A"
+      storage: "JSON file at user-specified location"
+
+  ProjectSettings:
+    description: "專案設定"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#ProjectSettings"
+
+    fields:
+      voiceId:
+        type: string
+        required: true
+        description: "選擇的 Google TTS 語音 ID"
+        example: "zh-TW-HsiaoChenNeural"
+
+      outputPath:
+        type: string
+        required: true
+        description: "輸出檔案儲存路徑"
+        example: "~/Documents/YTMaker3/我的影片專案"
+
+      imageStyle:
+        type: string
+        required: false
+        validation:
+          - "enum: [realistic, cute-illustration, chinese-classic, children]"
+        description: "圖片風格選擇"
+        example: "realistic"
+
+      didSettings:
+        type: object
+        required: false
+        description: "D-ID 設定"
+        ref: "DIDSettings"
+
+      subtitleStyle:
+        type: object
+        required: false
+        description: "字幕樣式"
+        ref: "SubtitleStyle"
+
+      logoSettings:
+        type: object
+        required: false
+        description: "Logo 設定"
+        ref: "LogoSettings"
+
+  DIDSettings:
+    description: "D-ID 對嘴設定"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#DIDSettings"
+
+    fields:
+      enabled:
+        type: boolean
+        required: true
+        description: "是否啟用 D-ID 對嘴功能"
+        example: true
+
+      position:
+        type: string
+        required: false
+        validation:
+          - "enum: [none, opening-only, ending-only, both]"
+        description: "對嘴影片使用位置"
+        example: "opening-only"
+
+      portraitImagePath:
+        type: string
+        required: false
+        description: "上傳的人像圖片路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/portrait.png"
+
+  SubtitleStyle:
+    description: "字幕樣式設定"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#SubtitleStyle"
+
+    fields:
+      position:
+        type: string
+        required: false
+        validation:
+          - "enum: [bottom-center, top-center, center, bottom-left, bottom-right]"
+        description: "字幕位置"
+        example: "bottom-center"
+
+      fontFamily:
+        type: string
+        required: false
+        description: "字型名稱"
+        example: "PingFang TC"
+
+      fontSize:
+        type: integer
+        required: false
+        validation:
+          - "minimum: 12"
+          - "maximum: 72"
+        description: "字體大小 (px)"
+        example: 32
+
+      textColor:
+        type: string
+        required: false
+        validation:
+          - "pattern: ^#[0-9A-Fa-f]{6}$"
+        description: "文字顏色 (Hex)"
+        example: "#FFFFFF"
+
+      shadowColor:
+        type: string
+        required: false
+        validation:
+          - "pattern: ^#[0-9A-Fa-f]{6}$"
+        description: "陰影顏色 (Hex)"
+        example: "#000000"
+
+      borderColor:
+        type: string
+        required: false
+        validation:
+          - "pattern: ^#[0-9A-Fa-f]{6}$"
+        description: "邊框顏色 (Hex)"
+        example: "#000000"
+
+      backgroundColor:
+        type: string
+        required: false
+        validation:
+          - "pattern: ^#[0-9A-Fa-f]{6}$"
+        description: "底色 (Hex)"
+        example: "#00000080"
+
+      backgroundPadding:
+        type: integer
+        required: false
+        validation:
+          - "minimum: 0"
+          - "maximum: 20"
+        description: "底色內邊距 (px)"
+        example: 8
+
+  LogoSettings:
+    description: "Logo 設定"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#LogoSettings"
+
+    fields:
+      enabled:
+        type: boolean
+        required: false
+        description: "是否啟用 Logo"
+        example: true
+
+      imagePath:
+        type: string
+        required: false
+        description: "Logo 圖片路徑"
+        example: "~/Documents/YTMaker3/logo.png"
+
+      position:
+        type: object
+        required: false
+        description: "Logo 位置"
+        ref: "Position2D"
+
+      scale:
+        type: number
+        required: false
+        validation:
+          - "minimum: 0.1"
+          - "maximum: 2.0"
+        description: "縮放比例"
+        example: 1.0
+
+  Position2D:
+    description: "2D 位置座標"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#Position2D"
+
+    fields:
+      x:
+        type: integer
+        required: true
+        validation:
+          - "minimum: 0"
+        description: "X 座標 (px,左上角為 0)"
+        example: 100
+
+      y:
+        type: integer
+        required: true
+        validation:
+          - "minimum: 0"
+        description: "Y 座標 (px,左上角為 0)"
+        example: 50
+
+  GeneratedAssets:
+    description: "生成的資源"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#GeneratedAssets"
+
+    fields:
+      audioFile:
+        type: string
+        required: false
+        description: "生成的音檔路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/audio.mp3"
+
+      timecodes:
+        type: array
+        required: false
+        description: "時間標記陣列"
+        item_ref: "Timecode"
+
+      script:
+        type: object
+        required: false
+        description: "腳本資料"
+        ref: "Script"
+
+      images:
+        type: array
+        required: false
+        description: "生成的圖片陣列"
+        item_ref: "GeneratedImage"
+
+      didVideos:
+        type: array
+        required: false
+        description: "生成的對嘴影片陣列"
+        item_ref: "DIDVideo"
+
+      finalVideo:
+        type: string
+        required: false
+        description: "最終合成的影片路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/final-video.mp4"
+
+  Timecode:
+    description: "時間標記"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#Timecode"
+
+    fields:
+      text:
+        type: string
+        required: true
+        description: "該時間段的文字內容"
+        example: "這是第一段文字"
+
+      startTime:
+        type: number
+        required: true
+        description: "開始時間 (秒)"
+        example: 0.0
+
+      endTime:
+        type: number
+        required: true
+        description: "結束時間 (秒)"
+        example: 2.5
+
+  Script:
+    description: "腳本資料"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#Script"
+
+    fields:
+      generatedAt:
+        type: timestamp
+        required: true
+        description: "腳本生成時間"
+        example: "2025-10-29T10:35:00Z"
+
+      systemPrompt:
+        type: string
+        required: true
+        description: "使用的 Gemini system prompt"
+        example: "你是一個專業的影片腳本生成助手..."
+
+      paragraphs:
+        type: array
+        required: true
+        description: "腳本段落陣列"
+        item_ref: "ScriptParagraph"
+
+  ScriptParagraph:
+    description: "腳本段落"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#ScriptParagraph"
+
+    fields:
+      paragraphId:
+        type: string
+        required: true
+        description: "段落唯一識別碼"
+        example: "para-001"
+
+      text:
+        type: string
+        required: true
+        description: "段落文字內容"
+        example: "歡迎來到我的頻道,今天要分享..."
+
+      startTime:
+        type: number
+        required: true
+        description: "段落開始時間 (秒)"
+        example: 0.0
+
+      endTime:
+        type: number
+        required: true
+        description: "段落結束時間 (秒)"
+        example: 5.2
+
+      imagePrompt:
+        type: string
+        required: true
+        description: "圖片生成提示詞 (英文)"
+        example: "A modern YouTube channel banner with colorful background"
+
+      imagePromptZh:
+        type: string
+        required: false
+        description: "圖片生成提示詞 (中文,供使用者檢視)"
+        example: "一個色彩繽紛的現代 YouTube 頻道橫幅"
+
+  GeneratedImage:
+    description: "生成的圖片"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#GeneratedImage"
+
+    fields:
+      paragraphId:
+        type: string
+        required: true
+        description: "對應的段落 ID"
+        example: "para-001"
+
+      imagePath:
+        type: string
+        required: true
+        description: "圖片檔案路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/images/para-001.png"
+
+      prompt:
+        type: string
+        required: true
+        description: "實際使用的完整提示詞"
+        example: "A modern YouTube channel banner with colorful background, realistic style, 16:9, high quality"
+
+      generatedAt:
+        type: timestamp
+        required: true
+        description: "圖片生成時間"
+        example: "2025-10-29T10:40:00Z"
+
+      cacheHash:
+        type: string
+        required: false
+        description: "提示詞的 SHA-256 hash (用於快取)"
+        example: "a3f5c8b2e1d4..."
+
+  DIDVideo:
+    description: "D-ID 對嘴影片"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#DIDVideo"
+
+    fields:
+      paragraphId:
+        type: string
+        required: true
+        description: "對應的段落 ID"
+        example: "para-001"
+
+      videoPath:
+        type: string
+        required: true
+        description: "對嘴影片檔案路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/did-videos/para-001.mp4"
+
+      generatedAt:
+        type: timestamp
+        required: true
+        description: "影片生成時間"
+        example: "2025-10-29T10:45:00Z"
+
+      duration:
+        type: number
+        required: true
+        description: "影片長度 (秒)"
+        example: 5.2
+
+  APIUsageStats:
+    description: "API 用量統計"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#APIUsageStats"
+
+    fields:
+      gemini:
+        type: object
+        required: true
+        description: "Gemini 用量"
+        ref: "GeminiUsage"
+
+      googleTTS:
+        type: object
+        required: true
+        description: "Google TTS 用量"
+        ref: "GoogleTTSUsage"
+
+      replicate:
+        type: object
+        required: true
+        description: "Replicate 用量"
+        ref: "ReplicateUsage"
+
+      did:
+        type: object
+        required: false
+        description: "D-ID 用量"
+        ref: "DIDUsage"
+
+      youtube:
+        type: object
+        required: false
+        description: "YouTube 用量"
+        ref: "YouTubeUsage"
+
+      totalCost:
+        type: number
+        required: true
+        description: "總計費用 (USD)"
+        example: 0.85
+
+  GeminiUsage:
+    description: "Gemini API 用量"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#GeminiUsage"
+
+    fields:
+      requests:
+        type: integer
+        required: true
+        description: "API 呼叫次數"
+        example: 1
+
+      inputTokens:
+        type: integer
+        required: true
+        description: "輸入 token 數"
+        example: 500
+
+      outputTokens:
+        type: integer
+        required: true
+        description: "輸出 token 數"
+        example: 1200
+
+      cost:
+        type: number
+        required: true
+        description: "費用 (USD)"
+        example: 0.02
+
+  GoogleTTSUsage:
+    description: "Google TTS 用量"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#GoogleTTSUsage"
+
+    fields:
+      characters:
+        type: integer
+        required: true
+        description: "合成的字數"
+        example: 500
+
+      cost:
+        type: number
+        required: true
+        description: "費用 (USD)"
+        example: 0.01
+
+  ReplicateUsage:
+    description: "Replicate 用量"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#ReplicateUsage"
+
+    fields:
+      images:
+        type: integer
+        required: true
+        description: "生成的圖片數量"
+        example: 5
+
+      cost:
+        type: number
+        required: true
+        description: "費用 (USD)"
+        example: 0.50
+
+  DIDUsage:
+    description: "D-ID 用量"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#DIDUsage"
+
+    fields:
+      videos:
+        type: integer
+        required: true
+        description: "生成的對嘴影片數量"
+        example: 1
+
+      totalDuration:
+        type: number
+        required: true
+        description: "影片總長度 (秒)"
+        example: 5.2
+
+      cost:
+        type: number
+        required: true
+        description: "費用 (USD)"
+        example: 0.30
+
+  YouTubeUsage:
+    description: "YouTube API 用量"
+    source: "visual-spec/contracts/internal-data-contracts.yaml#YouTubeUsage"
+
+    fields:
+      quotaUsed:
+        type: integer
+        required: true
+        description: "使用的 API 配額"
+        example: 1600
+
+# ==================== API ENDPOINTS ====================
+
+api_endpoints:
+  file_read:
+    source: "visual-spec/contracts/electron-ipc.yaml#file:read"
+    channel: "file:read"
+    type: "invoke"
+    description: "讀取檔案內容"
+
+    request:
+      schema:
+        path:
+          type: string
+          required: true
+          description: "檔案絕對路徑"
+
+    response:
+      success:
+        schema:
+          content:
+            type: string
+            description: "檔案內容"
+          error:
+            type: string
+            description: "錯誤訊息(若有)"
+
+  file_write:
+    source: "visual-spec/contracts/electron-ipc.yaml#file:write"
+    channel: "file:write"
+    type: "invoke"
+    description: "寫入檔案內容"
+
+    request:
+      schema:
+        path:
+          type: string
+          required: true
+          description: "檔案絕對路徑"
+        content:
+          type: string
+          required: true
+          description: "要寫入的內容"
+
+    response:
+      success:
+        schema:
+          success:
+            type: boolean
+          error:
+            type: string
+
+  file_select:
+    source: "visual-spec/contracts/electron-ipc.yaml#file:select"
+    channel: "file:select"
+    type: "invoke"
+    description: "開啟檔案選擇對話框"
+
+    request:
+      schema:
+        title:
+          type: string
+          required: false
+          description: "對話框標題"
+        filters:
+          type: array
+          required: false
+          description: "檔案篩選器"
+        defaultPath:
+          type: string
+          required: false
+          description: "預設路徑"
+
+    response:
+      success:
+        schema:
+          filePath:
+            type: string
+            description: "選擇的檔案路徑"
+          canceled:
+            type: boolean
+
+  directory_select:
+    source: "visual-spec/contracts/electron-ipc.yaml#directory:select"
+    channel: "directory:select"
+    type: "invoke"
+    description: "開啟目錄選擇對話框"
+
+    request:
+      schema:
+        title:
+          type: string
+          required: false
+          description: "對話框標題"
+        defaultPath:
+          type: string
+          required: false
+          description: "預設路徑"
+
+    response:
+      success:
+        schema:
+          directoryPath:
+            type: string
+            description: "選擇的目錄路徑"
+          canceled:
+            type: boolean
+
+  tts_generate:
+    source: "visual-spec/contracts/electron-ipc.yaml#tts:generate"
+    channel: "tts:generate"
+    type: "invoke"
+    description: "生成語音音檔和時間標記"
+
+    request:
+      schema:
+        text:
+          type: string
+          required: true
+          description: "要合成的文字"
+        voiceId:
+          type: string
+          required: true
+          description: "語音 ID"
+          example: "zh-TW-HsiaoChenNeural"
+        outputPath:
+          type: string
+          required: false
+          description: "音檔輸出路徑"
+
+    response:
+      success:
+        schema:
+          audioPath:
+            type: string
+            description: "生成的音檔路徑"
+          timecodes:
+            type: array
+            description: "時間標記陣列"
+          error:
+            type: string
+
+  tts_listVoices:
+    source: "visual-spec/contracts/electron-ipc.yaml#tts:listVoices"
+    channel: "tts:listVoices"
+    type: "invoke"
+    description: "列出可用語音"
+
+    request:
+      schema:
+        languageCode:
+          type: string
+          required: false
+          description: "語言代碼"
+          example: "zh-TW"
+
+    response:
+      success:
+        schema:
+          voices:
+            type: array
+            description: "語音列表"
+          error:
+            type: string
+
+  gemini_generateScript:
+    source: "visual-spec/contracts/electron-ipc.yaml#gemini:generateScript"
+    channel: "gemini:generateScript"
+    type: "invoke"
+    description: "根據文稿和時間標記生成結構化腳本"
+
+    request:
+      schema:
+        scriptContent:
+          type: string
+          required: true
+          description: "原始文稿內容"
+        timecodes:
+          type: array
+          required: true
+          description: "TTS 生成的時間標記"
+        systemPrompt:
+          type: string
+          required: false
+          description: "自訂 system prompt"
+
+    response:
+      success:
+        schema:
+          paragraphs:
+            type: array
+            description: "腳本段落陣列"
+          usageMetadata:
+            type: object
+            description: "用量統計"
+          error:
+            type: string
+
+  replicate_generateImage:
+    source: "visual-spec/contracts/electron-ipc.yaml#replicate:generateImage"
+    channel: "replicate:generateImage"
+    type: "invoke"
+    description: "生成單張圖片"
+
+    request:
+      schema:
+        prompt:
+          type: string
+          required: true
+          description: "圖片生成提示詞(英文)"
+        style:
+          type: string
+          required: false
+          description: "圖片風格"
+          validation:
+            - "enum: [realistic, cute-illustration, chinese-classic, children]"
+        outputPath:
+          type: string
+          required: true
+          description: "圖片儲存路徑"
+        cacheHash:
+          type: string
+          required: false
+          description: "快取 hash"
+
+    response:
+      success:
+        schema:
+          imagePath:
+            type: string
+            description: "生成的圖片路徑"
+          fromCache:
+            type: boolean
+            description: "是否從快取取得"
+          error:
+            type: string
+
+  replicate_batchGenerate:
+    source: "visual-spec/contracts/electron-ipc.yaml#replicate:batchGenerate"
+    channel: "replicate:batchGenerate"
+    type: "invoke"
+    description: "批次生成多張圖片(含並發控制)"
+
+    request:
+      schema:
+        requests:
+          type: array
+          required: true
+          description: "圖片生成請求陣列"
+        concurrency:
+          type: integer
+          required: false
+          description: "並發數量"
+          example: 3
+
+    response:
+      success:
+        schema:
+          results:
+            type: array
+            description: "生成結果陣列"
+          errors:
+            type: array
+            description: "錯誤陣列"
+
+  did_generateVideo:
+    source: "visual-spec/contracts/electron-ipc.yaml#did:generateVideo"
+    channel: "did:generateVideo"
+    type: "invoke"
+    description: "生成 D-ID 對嘴影片"
+
+    request:
+      schema:
+        portraitImagePath:
+          type: string
+          required: true
+          description: "人像圖片路徑"
+        audioPath:
+          type: string
+          required: true
+          description: "音檔路徑"
+        startTime:
+          type: number
+          required: false
+          description: "音檔起始時間(秒)"
+        endTime:
+          type: number
+          required: false
+          description: "音檔結束時間(秒)"
+        outputPath:
+          type: string
+          required: true
+          description: "輸出影片路徑"
+
+    response:
+      success:
+        schema:
+          videoPath:
+            type: string
+            description: "生成的影片路徑"
+          duration:
+            type: number
+            description: "影片長度(秒)"
+          error:
+            type: string
+
+  ffmpeg_mergeVideo:
+    source: "visual-spec/contracts/electron-ipc.yaml#ffmpeg:mergeVideo"
+    channel: "ffmpeg:mergeVideo"
+    type: "invoke"
+    description: "合成最終影片(圖片+音檔+字幕+Logo)"
+
+    request:
+      schema:
+        segments:
+          type: array
+          required: true
+          description: "影片片段列表"
+        audioPath:
+          type: string
+          required: false
+          description: "配音音檔路徑"
+        subtitles:
+          type: array
+          required: false
+          description: "字幕列表"
+        subtitleStyle:
+          type: object
+          required: false
+          description: "字幕樣式"
+        logo:
+          type: object
+          required: false
+          description: "Logo 設定"
+        outputPath:
+          type: string
+          required: true
+          description: "輸出影片路徑"
+
+    response:
+      success:
+        schema:
+          videoPath:
+            type: string
+            description: "合成的影片路徑"
+          duration:
+            type: number
+            description: "影片長度(秒)"
+          fileSize:
+            type: integer
+            description: "檔案大小(bytes)"
+          error:
+            type: string
+
+  youtube_auth:
+    source: "visual-spec/contracts/electron-ipc.yaml#youtube:auth"
+    channel: "youtube:auth"
+    type: "invoke"
+    description: "YouTube OAuth 2.0 認證"
+
+    request:
+      schema:
+        forceRefresh:
+          type: boolean
+          required: false
+          description: "強制重新認證"
+
+    response:
+      success:
+        schema:
+          authenticated:
+            type: boolean
+            description: "是否已認證"
+          email:
+            type: string
+            description: "已認證的 Google 帳號"
+          error:
+            type: string
+
+  youtube_listChannels:
+    source: "visual-spec/contracts/electron-ipc.yaml#youtube:listChannels"
+    channel: "youtube:listChannels"
+    type: "invoke"
+    description: "列出 YouTube 頻道"
+
+    response:
+      success:
+        schema:
+          channels:
+            type: array
+            description: "頻道列表"
+          error:
+            type: string
+
+  youtube_uploadVideo:
+    source: "visual-spec/contracts/electron-ipc.yaml#youtube:uploadVideo"
+    channel: "youtube:uploadVideo"
+    type: "invoke"
+    description: "上傳影片到 YouTube"
+
+    request:
+      schema:
+        videoPath:
+          type: string
+          required: true
+          description: "影片檔案路徑"
+        title:
+          type: string
+          required: true
+          description: "影片標題"
+        description:
+          type: string
+          required: false
+          description: "影片描述"
+        tags:
+          type: array
+          required: false
+          description: "標籤陣列"
+        categoryId:
+          type: string
+          required: false
+          description: "分類 ID"
+        privacyStatus:
+          type: string
+          required: false
+          description: "隱私設定"
+          validation:
+            - "enum: [public, private, unlisted]"
+        thumbnailPath:
+          type: string
+          required: false
+          description: "自訂縮圖路徑"
+        publishAt:
+          type: timestamp
+          required: false
+          description: "排程發布時間"
+
+    response:
+      success:
+        schema:
+          videoId:
+            type: string
+            description: "YouTube 影片 ID"
+          videoUrl:
+            type: string
+            description: "YouTube 影片 URL"
+          quotaUsed:
+            type: integer
+            description: "使用的 API 配額"
+          error:
+            type: string
+
+  apiKey_get:
+    source: "visual-spec/contracts/electron-ipc.yaml#apiKey:get"
+    channel: "apiKey:get"
+    type: "invoke"
+    description: "從 macOS Keychain 讀取 API 金鑰"
+
+    request:
+      schema:
+        service:
+          type: string
+          required: true
+          description: "服務名稱"
+          validation:
+            - "enum: [google-tts, gemini, replicate, did, youtube]"
+
+    response:
+      success:
+        schema:
+          apiKey:
+            type: string
+            description: "API 金鑰(若未設定則為 null)"
+          exists:
+            type: boolean
+            description: "金鑰是否存在"
+
+  apiKey_set:
+    source: "visual-spec/contracts/electron-ipc.yaml#apiKey:set"
+    channel: "apiKey:set"
+    type: "invoke"
+    description: "儲存 API 金鑰到 macOS Keychain"
+
+    request:
+      schema:
+        service:
+          type: string
+          required: true
+          description: "服務名稱"
+          validation:
+            - "enum: [google-tts, gemini, replicate, did, youtube]"
+        apiKey:
+          type: string
+          required: true
+          description: "API 金鑰"
+
+    response:
+      success:
+        schema:
+          success:
+            type: boolean
+            description: "是否成功"
+          error:
+            type: string
+
+  cache_getSize:
+    source: "visual-spec/contracts/electron-ipc.yaml#cache:getSize"
+    channel: "cache:getSize"
+    type: "invoke"
+    description: "取得快取大小資訊"
+
+    response:
+      success:
+        schema:
+          totalSize:
+            type: integer
+            description: "總大小(bytes)"
+          itemCount:
+            type: integer
+            description: "快取項目數量"
+          categories:
+            type: object
+            description: "分類統計"
+
+  cache_clear:
+    source: "visual-spec/contracts/electron-ipc.yaml#cache:clear"
+    channel: "cache:clear"
+    type: "invoke"
+    description: "清除快取"
+
+    request:
+      schema:
+        category:
+          type: string
+          required: false
+          description: "快取分類"
+          validation:
+            - "enum: [all, images, videos]"
+        olderThan:
+          type: integer
+          required: false
+          description: "清除 X 天前的快取"
+
+    response:
+      success:
+        schema:
+          deletedSize:
+            type: integer
+            description: "刪除的大小(bytes)"
+          deletedCount:
+            type: integer
+            description: "刪除的項目數"
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  HomePage:
+    source: "visual-spec/pages/01-home-page.md"
+    type: "page"
+    description: "首頁,顯示歡迎訊息、最近專案、快速動作按鈕"
+
+    state:
+      recentProjects:
+        type: array
+        initial_value: []
+        description: "最近的專案列表"
+      apiKeysConfigured:
+        type: boolean
+        initial_value: false
+        description: "API 金鑰是否已設定"
+
+    behavior:
+      on_mount:
+        - "載入最近 3 個專案"
+        - "檢查 API 金鑰是否已設定"
+        - "若未設定,顯示歡迎對話框"
+
+      on_click_newProject:
+        - "檢查 API 金鑰狀態"
+        - "若未設定,顯示設定對話框"
+        - "若已設定,跳轉到文稿輸入頁面"
+
+      on_click_loadProject:
+        - api_call: "file:select"
+        - on_success: "載入專案 JSON 檔案"
+        - on_error: "顯示錯誤訊息"
+
+      on_click_apiKeySettings:
+        - "開啟 API 金鑰設定對話框"
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "點擊載入專案"
+        response_handling: "解析 JSON 並載入到 store"
+
+    implementation:
+      file: "src/renderer/pages/HomePage/HomePage.tsx"
+      framework_specifics:
+        routing: "使用 react-router-dom"
+        state_management: "zustand"
+
+  ScriptInputPage:
+    source: "visual-spec/pages/02-script-input-page.md"
+    type: "page"
+    description: "文稿輸入頁面,輸入文稿、選擇語音、設定輸出位置"
+
+    state:
+      scriptContent:
+        type: string
+        initial_value: ""
+        description: "文稿內容"
+      selectedVoice:
+        type: string
+        initial_value: "zh-TW-HsiaoChenNeural"
+        description: "選擇的語音 ID"
+      outputPath:
+        type: string
+        initial_value: "~/Documents/YTMaker3"
+        description: "輸出位置"
+      isProcessing:
+        type: boolean
+        initial_value: false
+        description: "是否正在處理"
+
+    behavior:
+      on_mount:
+        - api_call: "tts:listVoices"
+        - "載入可用語音列表"
+
+      on_change_scriptContent:
+        - "即時計算字數(debounce 300ms)"
+        - "預估影片時長(字數 ÷ 250)"
+        - "驗證文稿長度"
+
+      on_click_next:
+        - "驗證文稿(≥ 10 字)"
+        - api_call: "tts:generate"
+        - on_success: "呼叫 gemini:generateScript"
+        - on_error: "顯示錯誤訊息,提供重試"
+
+      validation:
+        - field: "scriptContent"
+          rule: "minLength: 10"
+          error_message: "文稿過短,請至少輸入 10 字"
+
+    api_calls:
+      - endpoint: "tts:listVoices"
+        method: "invoke"
+        trigger: "頁面載入"
+        response_handling: "更新語音選項列表"
+
+      - endpoint: "tts:generate"
+        method: "invoke"
+        trigger: "點擊下一步"
+        request_data: "scriptContent, selectedVoice, outputPath"
+        response_handling: "儲存音檔路徑和時間標記"
+
+      - endpoint: "gemini:generateScript"
+        method: "invoke"
+        trigger: "TTS 完成後"
+        request_data: "scriptContent, timecodes"
+        response_handling: "儲存腳本並跳轉到編輯頁面"
+
+    implementation:
+      file: "src/renderer/pages/ScriptInputPage/ScriptInputPage.tsx"
+      framework_specifics:
+        routing: "由 HomePage 導航而來"
+        state_management: "zustand projectStore"
+
+  ScriptEditorPage:
+    source: "visual-spec/pages/03-script-editor-page.md"
+    type: "page"
+    description: "腳本編輯頁面,編輯段落、選擇圖片風格、設定 D-ID"
+
+    state:
+      paragraphs:
+        type: array
+        initial_value: []
+        description: "腳本段落陣列"
+      selectedParagraphIndex:
+        type: integer
+        initial_value: 0
+        description: "目前選擇的段落索引"
+      imageStyle:
+        type: string
+        initial_value: "realistic"
+        description: "圖片風格"
+      didEnabled:
+        type: boolean
+        initial_value: false
+        description: "是否啟用 D-ID"
+      didPosition:
+        type: string
+        initial_value: "none"
+        description: "D-ID 位置"
+      portraitImage:
+        type: string
+        initial_value: null
+        description: "人像圖片路徑"
+
+    behavior:
+      on_mount:
+        - "載入 Gemini 生成的腳本"
+        - "顯示第一個段落"
+
+      on_click_paragraph:
+        - "儲存目前段落的編輯"
+        - "切換到選擇的段落"
+
+      on_edit_paragraph:
+        - "即時儲存編輯(debounce 1000ms)"
+        - "更新 projectStore"
+
+      on_click_uploadPortrait:
+        - api_call: "file:select"
+        - "驗證圖片比例(16:9)"
+        - on_success: "儲存圖片路徑"
+        - on_error: "顯示錯誤:圖片比例必須為 16:9"
+
+      on_click_next:
+        - "驗證所有段落的圖片提示詞不為空"
+        - "若啟用 D-ID,驗證已上傳人像"
+        - api_call: "replicate:batchGenerate"
+        - on_success: "若啟用 D-ID,呼叫 did:generateVideo"
+        - on_error: "顯示錯誤,提供重試/跳過/修改提示詞選項"
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "上傳人像圖片"
+        response_handling: "驗證並儲存圖片路徑"
+
+      - endpoint: "replicate:batchGenerate"
+        method: "invoke"
+        trigger: "點擊生成媒體"
+        request_data: "所有段落的圖片提示詞、imageStyle"
+        response_handling: "儲存圖片路徑到對應段落"
+
+      - endpoint: "did:generateVideo"
+        method: "invoke"
+        trigger: "圖片生成完成後(若啟用)"
+        request_data: "portraitImage, audioPath, startTime, endTime"
+        response_handling: "儲存對嘴影片路徑"
+
+    implementation:
+      file: "src/renderer/pages/ScriptEditorPage/ScriptEditorPage.tsx"
+      framework_specifics:
+        routing: "由 ScriptInputPage 導航而來"
+        state_management: "zustand projectStore"
+
+  VideoPreviewPage:
+    source: "visual-spec/pages/04-video-preview-page.md"
+    type: "page"
+    description: "影片預覽頁面,編輯字幕樣式、Logo,下載縮圖底圖"
+
+    state:
+      previewVideoPath:
+        type: string
+        initial_value: null
+        description: "預覽影片路徑"
+      isPlaying:
+        type: boolean
+        initial_value: false
+        description: "是否正在播放"
+      currentTime:
+        type: number
+        initial_value: 0
+        description: "目前播放時間"
+      subtitleStyle:
+        type: object
+        initial_value: "預設字幕樣式"
+        description: "字幕樣式設定"
+      logoSettings:
+        type: object
+        initial_value: null
+        description: "Logo 設定"
+
+    behavior:
+      on_mount:
+        - "生成預覽影片(低解析度)"
+        - "載入專案中的字幕和 Logo 設定"
+
+      on_change_subtitleStyle:
+        - "即時更新預覽窗口字幕樣式(CSS)"
+        - "自動儲存到 projectStore"
+
+      on_upload_logo:
+        - api_call: "file:select"
+        - "驗證檔案格式(PNG, JPG)"
+        - on_success: "顯示 Logo 預覽,啟用拖曳定位"
+        - on_error: "顯示錯誤:不支援的格式"
+
+      on_drag_logo:
+        - "更新 Logo 位置座標"
+        - "即時更新預覽窗口"
+        - "儲存到 projectStore"
+
+      on_click_downloadThumbnail:
+        - "開啟檔案儲存對話框"
+        - "儲存選中段落的圖片"
+
+      on_click_next:
+        - api_call: "ffmpeg:mergeVideo"
+        - on_success: "跳轉到 YouTube 上傳頁面"
+        - on_error: "顯示錯誤,提供重試選項"
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "上傳 Logo"
+        response_handling: "儲存 Logo 路徑並顯示預覽"
+
+      - endpoint: "ffmpeg:mergeVideo"
+        method: "invoke"
+        trigger: "點擊合成影片"
+        request_data: "segments, audioPath, subtitles, subtitleStyle, logo, outputPath"
+        response_handling: "儲存最終影片路徑,跳轉到上傳頁面"
+
+    implementation:
+      file: "src/renderer/pages/VideoPreviewPage/VideoPreviewPage.tsx"
+      framework_specifics:
+        routing: "由 ScriptEditorPage 導航而來"
+        state_management: "zustand projectStore"
+
+  YouTubeUploadPage:
+    source: "visual-spec/pages/05-youtube-upload-page.md"
+    type: "page"
+    description: "YouTube 上傳頁面,填寫影片資訊、上傳到 YouTube"
+
+    state:
+      isAuthenticated:
+        type: boolean
+        initial_value: false
+        description: "是否已登入 YouTube"
+      userEmail:
+        type: string
+        initial_value: null
+        description: "使用者 email"
+      channels:
+        type: array
+        initial_value: []
+        description: "頻道列表"
+      selectedChannel:
+        type: string
+        initial_value: null
+        description: "選擇的頻道 ID"
+      videoTitle:
+        type: string
+        initial_value: ""
+        description: "影片標題"
+      videoDescription:
+        type: string
+        initial_value: ""
+        description: "影片描述"
+      tags:
+        type: string
+        initial_value: ""
+        description: "標籤(逗號分隔)"
+      privacyStatus:
+        type: string
+        initial_value: "public"
+        description: "隱私設定"
+      categoryId:
+        type: string
+        initial_value: "27"
+        description: "分類 ID"
+      thumbnailPath:
+        type: string
+        initial_value: null
+        description: "自訂縮圖路徑"
+      scheduleEnabled:
+        type: boolean
+        initial_value: false
+        description: "是否啟用排程發布"
+      publishAt:
+        type: timestamp
+        initial_value: null
+        description: "排程發布時間"
+
+    behavior:
+      on_mount:
+        - "檢查 YouTube 授權狀態"
+        - api_call: "youtube:auth"
+        - on_success: "載入頻道列表"
+
+      on_click_login:
+        - api_call: "youtube:auth"
+        - "開啟 OAuth 2.0 流程"
+        - on_success: "更新認證狀態,載入頻道"
+        - on_error: "顯示錯誤:授權失敗"
+
+      on_click_uploadThumbnail:
+        - api_call: "file:select"
+        - "驗證尺寸(1280x720)和格式(JPG, PNG)"
+        - on_success: "儲存縮圖路徑,顯示預覽"
+        - on_error: "顯示錯誤:縮圖格式不符"
+
+      on_click_upload:
+        - "驗證必填欄位(標題、隱私設定)"
+        - "驗證排程時間(若啟用)"
+        - api_call: "youtube:uploadVideo"
+        - on_success: "跳轉到完成頁面,顯示影片 URL"
+        - on_error: "顯示錯誤,提供重試選項"
+
+      validation:
+        - field: "videoTitle"
+          rule: "required, maxLength: 100"
+          error_message: "影片標題不能為空且最多 100 字"
+        - field: "videoDescription"
+          rule: "maxLength: 5000"
+          error_message: "描述過長,最多 5000 字"
+        - field: "publishAt"
+          rule: "future date"
+          error_message: "排程時間必須為未來時間"
+
+    api_calls:
+      - endpoint: "youtube:auth"
+        method: "invoke"
+        trigger: "頁面載入或點擊登入"
+        response_handling: "更新認證狀態,儲存 email"
+
+      - endpoint: "youtube:listChannels"
+        method: "invoke"
+        trigger: "認證成功後"
+        response_handling: "更新頻道列表"
+
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "上傳縮圖"
+        response_handling: "驗證並儲存縮圖路徑"
+
+      - endpoint: "youtube:uploadVideo"
+        method: "invoke"
+        trigger: "點擊上傳影片"
+        request_data: "videoPath, title, description, tags, privacyStatus, categoryId, thumbnailPath, publishAt"
+        response_handling: "儲存影片 ID 和 URL,跳轉到完成頁面"
+
+    implementation:
+      file: "src/renderer/pages/YouTubeUploadPage/YouTubeUploadPage.tsx"
+      framework_specifics:
+        routing: "由 VideoPreviewPage 導航而來"
+        state_management: "zustand projectStore"
+
+  CompletionPage:
+    source: "visual-spec/pages/06-completion-page.md"
+    type: "page"
+    description: "完成頁面,顯示 API 用量統計、影片連結"
+
+    state:
+      videoUrl:
+        type: string
+        initial_value: null
+        description: "YouTube 影片 URL"
+      apiUsageStats:
+        type: object
+        initial_value: null
+        description: "API 用量統計"
+
+    behavior:
+      on_mount:
+        - "載入 API 用量統計"
+        - "顯示 YouTube 影片連結"
+
+      on_click_backHome:
+        - "跳轉到首頁"
+
+      on_click_newProject:
+        - "清空 projectStore"
+        - "跳轉到文稿輸入頁面"
+
+    implementation:
+      file: "src/renderer/pages/CompletionPage/CompletionPage.tsx"
+      framework_specifics:
+        routing: "由 YouTubeUploadPage 導航而來"
+        state_management: "zustand projectStore"
+
+  Stepper:
+    source: "visual-spec/components/common-components.md#Stepper"
+    type: "component"
+    description: "進度指示器,顯示目前所在步驟"
+
+    props:
+      currentStep:
+        type: integer
+        required: true
+        description: "目前步驟 (1-4)"
+      totalSteps:
+        type: integer
+        required: true
+        description: "總步驟數"
+
+    implementation:
+      file: "src/renderer/components/feedback/Stepper.tsx"
+
+  ProgressCard:
+    source: "visual-spec/components/common-components.md#ProgressCard"
+    type: "component"
+    description: "進度卡片,顯示處理進度"
+
+    props:
+      title:
+        type: string
+        required: true
+        description: "卡片標題"
+      progress:
+        type: number
+        required: true
+        description: "進度百分比 (0-100)"
+      message:
+        type: string
+        required: false
+        description: "進度訊息"
+      estimatedTime:
+        type: string
+        required: false
+        description: "預估剩餘時間"
+
+    implementation:
+      file: "src/renderer/components/feedback/ProgressCard.tsx"
+
+  ErrorBanner:
+    source: "visual-spec/components/common-components.md#ErrorBanner"
+    type: "component"
+    description: "錯誤提示橫幅"
+
+    props:
+      message:
+        type: string
+        required: true
+        description: "錯誤訊息"
+      details:
+        type: string
+        required: false
+        description: "錯誤詳情"
+      onClose:
+        type: function
+        required: false
+        description: "關閉回調"
+
+    implementation:
+      file: "src/renderer/components/feedback/ErrorBanner.tsx"
+
+# ==================== BUSINESS LOGIC ====================
+
+business_logic:
+  MainVideoCreationFlow:
+    source: "visual-spec/flows/main-video-creation-flow.md"
+    description: "主要影片製作流程,從文稿輸入到 YouTube 上傳"
+
+    steps:
+      - step: 1
+        action: "檢查 API 金鑰是否已設定"
+        depends_on:
+          - "KeychainService"
+        conditions:
+          - if: "未設定必要金鑰"
+            then: "顯示歡迎對話框,引導設定"
+
+      - step: 2
+        action: "文稿輸入與驗證"
+        depends_on:
+          - "ProjectSettings"
+        conditions:
+          - if: "文稿少於 10 字"
+            then: "顯示錯誤,禁用下一步"
+
+      - step: 3
+        action: "呼叫 Google TTS 生成配音"
+        depends_on:
+          - "TTSService"
+        error_handling:
+          - error: "API 連線失敗"
+            action: "顯示錯誤,提供重試選項"
+          - error: "API 金鑰無效"
+            action: "引導到設定頁面"
+
+      - step: 4
+        action: "呼叫 Gemini 生成腳本"
+        depends_on:
+          - "GeminiService"
+          - "Timecode"
+        error_handling:
+          - error: "API 連線失敗"
+            action: "顯示錯誤,提供重試選項"
+
+      - step: 5
+        action: "腳本編輯與圖片風格選擇"
+        depends_on:
+          - "Script"
+          - "ScriptParagraph"
+        conditions:
+          - if: "使用者選擇 D-ID 對嘴"
+            then: "要求上傳 16:9 人像圖片"
+
+      - step: 6
+        action: "批次生成圖片"
+        depends_on:
+          - "ReplicateService"
+        error_handling:
+          - error: "圖片生成失敗"
+            action: "自動重試 2 次,超過則停止流程"
+          - error: "Rate Limit"
+            action: "等待後重試"
+
+      - step: 7
+        action: "生成 D-ID 對嘴影片(若啟用)"
+        depends_on:
+          - "DIDService"
+        conditions:
+          - if: "didSettings.enabled = true"
+            then: "根據 position 生成對應段落的對嘴影片"
+        error_handling:
+          - error: "生成失敗"
+            action: "提供重試或繼續不使用對嘴選項"
+
+      - step: 8
+        action: "字幕和 Logo 編輯"
+        depends_on:
+          - "SubtitleStyle"
+          - "LogoSettings"
+
+      - step: 9
+        action: "使用 FFmpeg 合成影片"
+        depends_on:
+          - "FFmpegService"
+        error_handling:
+          - error: "合成失敗"
+            action: "顯示錯誤,提供重試選項"
+          - error: "儲存空間不足"
+            action: "提示清理快取或選擇其他位置"
+
+      - step: 10
+        action: "YouTube OAuth 認證"
+        depends_on:
+          - "YouTubeService"
+        conditions:
+          - if: "未認證或 Token 過期"
+            then: "執行 OAuth 2.0 流程"
+
+      - step: 11
+        action: "填寫影片資訊並上傳"
+        depends_on:
+          - "YouTubeService"
+        error_handling:
+          - error: "上傳失敗"
+            action: "顯示錯誤,提供重試選項"
+          - error: "配額超限"
+            action: "提示明天再試"
+
+      - step: 12
+        action: "顯示完成頁面與 API 用量統計"
+        depends_on:
+          - "APIUsageStats"
+
+    implementation:
+      service: "src/main/services/VideoCreationService.ts"
+      methods:
+        - "createVideoFromScript"
+        - "generateAudio"
+        - "generateScript"
+        - "generateImages"
+        - "generateDIDVideos"
+        - "mergeVideo"
+        - "uploadToYouTube"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  scriptContent:
+    source: "visual-spec/pages/02-script-input-page.md"
+    rules:
+      - type: "minLength"
+        value: 10
+        error_message: "文稿過短,請至少輸入 10 字"
+        applies_to: "client"
+
+      - type: "maxLength"
+        value: 10000
+        error_message: "文稿過長,最多 10000 字"
+        applies_to: "client"
+
+  videoTitle:
+    source: "visual-spec/pages/05-youtube-upload-page.md"
+    rules:
+      - type: "required"
+        error_message: "影片標題不能為空"
+        applies_to: "client"
+
+      - type: "maxLength"
+        value: 100
+        error_message: "標題過長,最多 100 字"
+        applies_to: "client"
+
+  videoDescription:
+    source: "visual-spec/pages/05-youtube-upload-page.md"
+    rules:
+      - type: "maxLength"
+        value: 5000
+        error_message: "描述過長,最多 5000 字"
+        applies_to: "client"
+
+  portraitImage:
+    source: "visual-spec/pages/03-script-editor-page.md"
+    rules:
+      - type: "aspectRatio"
+        value: "16:9"
+        error_message: "圖片比例必須為 16:9"
+        applies_to: "client"
+
+      - type: "maxFileSize"
+        value: 5242880
+        error_message: "檔案大小不能超過 5MB"
+        applies_to: "client"
+
+  thumbnailImage:
+    source: "visual-spec/pages/05-youtube-upload-page.md"
+    rules:
+      - type: "resolution"
+        value: "1280x720"
+        error_message: "建議尺寸: 1280x720 (16:9)"
+        applies_to: "client"
+
+      - type: "maxFileSize"
+        value: 2097152
+        error_message: "檔案大小不能超過 2MB"
+        applies_to: "client"
+
+  publishAt:
+    source: "visual-spec/pages/05-youtube-upload-page.md"
+    rules:
+      - type: "futureDate"
+        error_message: "排程時間必須為未來時間"
+        applies_to: "client"
+
+# ==================== ERROR HANDLING ====================
+
+error_handling:
+  client_side:
+    - error_type: "validation"
+      message: "根據驗證規則顯示對應錯誤訊息"
+      action: "禁用提交按鈕,顯示錯誤提示"
+
+    - error_type: "network"
+      message: "網路連線失敗,請檢查您的網路連線後重試"
+      action: "顯示錯誤橫幅,提供重試按鈕"
+
+    - error_type: "api_error"
+      message: "根據 API 錯誤類型顯示對應訊息"
+      action: "顯示錯誤對話框,提供重試/取消選項"
+
+  server_side:
+    - error_type: "400"
+      message: "請求格式錯誤"
+      logging: "記錄請求內容和錯誤原因"
+      response: "返回詳細錯誤訊息"
+
+    - error_type: "401"
+      message: "API 金鑰無效或已過期"
+      logging: "記錄 API 服務名稱"
+      response: "引導使用者到設定頁面"
+
+    - error_type: "403"
+      message: "權限不足"
+      logging: "記錄嘗試的操作"
+      response: "返回權限錯誤訊息"
+
+    - error_type: "429"
+      message: "API 請求過於頻繁"
+      logging: "記錄請求頻率"
+      response: "建議稍後重試"
+
+    - error_type: "500"
+      message: "伺服器錯誤"
+      logging: "記錄完整錯誤堆疊"
+      response: "返回通用錯誤訊息,提供重試"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    - component: "TTSService"
+      must_test:
+        - "呼叫 Google TTS API 並返回音檔路徑和時間標記"
+        - "API 金鑰無效時拋出錯誤"
+        - "網路連線失敗時正確處理"
+
+    - component: "GeminiService"
+      must_test:
+        - "根據文稿和時間標記生成結構化腳本"
+        - "解析 Gemini 回應並提取段落資料"
+        - "API 錯誤時正確處理並重試"
+
+    - component: "ReplicateService"
+      must_test:
+        - "批次生成圖片並控制並發數量"
+        - "檢查快取避免重複生成"
+        - "單張圖片失敗時自動重試 2 次"
+
+    - component: "FFmpegService"
+      must_test:
+        - "合成影片包含圖片、音檔、字幕、Logo"
+        - "字幕同步時間標記正確"
+        - "FFmpeg 錯誤時正確處理"
+
+    - component: "YouTubeService"
+      must_test:
+        - "OAuth 2.0 認證流程正確"
+        - "上傳影片並返回影片 ID 和 URL"
+        - "Token 過期時自動更新"
+
+    - component: "ScriptInputPage"
+      must_test:
+        - "文稿驗證規則正確(最少 10 字)"
+        - "字數統計和影片時長預估正確"
+        - "點擊下一步觸發正確的 API 呼叫序列"
+
+  integration_tests:
+    - flow: "MainVideoCreationFlow"
+      must_test:
+        - "從文稿輸入到影片合成的完整流程"
+        - "各階段之間的資料傳遞正確"
+        - "錯誤發生時流程正確中斷"
+
+    - flow: "YouTubeUploadFlow"
+      must_test:
+        - "OAuth 認證到影片上傳的完整流程"
+        - "排程上傳功能正確"
+        - "縮圖上傳功能正確"
+
+  e2e_tests:
+    - scenario: "基本影片製作與發布 (User Story 1)"
+      steps:
+        - "啟動應用程式,進入首頁"
+        - "點擊建立新專案,進入文稿輸入頁面"
+        - "輸入 500 字文稿,選擇語音,點擊下一步"
+        - "等待 TTS 和 Gemini 處理完成,進入腳本編輯頁面"
+        - "選擇圖片風格,點擊生成媒體"
+        - "等待圖片生成完成,進入影片預覽頁面"
+        - "調整字幕樣式,點擊合成影片"
+        - "等待 FFmpeg 合成完成,進入 YouTube 上傳頁面"
+        - "登入 YouTube,填寫影片資訊,點擊上傳"
+        - "等待上傳完成,查看完成頁面和 API 用量統計"
+
+    - scenario: "腳本客製化與進階編輯 (User Story 2)"
+      steps:
+        - "在腳本編輯頁面修改段落文字和圖片提示詞"
+        - "調整段落時間範圍"
+        - "在影片預覽頁面上傳 Logo 並拖曳定位"
+        - "調整字幕位置、顏色、字型"
+        - "下載任一張圖片作為縮圖底圖"
+
+    - scenario: "對嘴影片生成 (User Story 3)"
+      steps:
+        - "在腳本編輯頁面選擇僅開頭使用 D-ID"
+        - "上傳 16:9 人像圖片"
+        - "點擊生成媒體,等待圖片和對嘴影片生成"
+        - "在影片預覽頁面確認開頭使用對嘴影片"
+
+# ==================== DEPLOYMENT CONFIGURATION ====================
+
+deployment:
+  target: "electron-desktop-app"
+
+  platform: "macos"
+
+  electron:
+    version: "28.0.0"
+    builder_version: "24.0.0"
+    app_id: "com.ytmaker3.app"
+    product_name: "YTMaker3"
+    category: "public.app-category.video"
+
+    mac:
+      target:
+        - "dmg"
+        - "zip"
+      icon: "resources/icon.icns"
+      hardenedRuntime: true
+      gatekeeperAssess: false
+
+    dmg:
+      window:
+        width: 540
+        height: 380
+
+  build:
+    install_command: "npm install"
+    build_command: "npm run build"
+    output_directory: "dist"
+    minify: true
+    source_maps: false
+
+  environment:
+    NODE_ENV: "production"
+    LOG_LEVEL: "info"
+
+  secrets:
+    - name: "GOOGLE_TTS_API_KEY"
+      description: "Google Cloud TTS API 金鑰"
+      required: true
+      storage: "macOS Keychain"
+
+    - name: "GEMINI_API_KEY"
+      description: "Gemini API 金鑰"
+      required: true
+      storage: "macOS Keychain"
+
+    - name: "REPLICATE_API_TOKEN"
+      description: "Replicate API Token"
+      required: true
+      storage: "macOS Keychain"
+
+    - name: "DID_API_KEY"
+      description: "D-ID API 金鑰"
+      required: false
+      storage: "macOS Keychain"
+
+    - name: "YOUTUBE_CLIENT_ID"
+      description: "YouTube OAuth Client ID"
+      required: true
+      storage: "macOS Keychain"
+
+    - name: "YOUTUBE_CLIENT_SECRET"
+      description: "YouTube OAuth Client Secret"
+      required: true
+      storage: "macOS Keychain"
+
+  dependencies:
+    - name: "FFmpeg"
+      description: "影片處理工具"
+      required: true
+      installation: "使用者需自行安裝或應用程式內建"
+
+# ==================== CONSTITUTION CHECK ====================
+
+constitution_check:
+  compliant: true
+  violations: []
+  justifications:
+    - "使用 macOS Keychain 安全儲存 API 金鑰,符合安全原則"
+    - "所有錯誤處理都提供清晰的使用者訊息和恢復選項"
+    - "圖片快取機制遵循 macOS 標準目錄規範"
+    - "專案檔案使用 JSON 格式,易於備份和遷移"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  requirements: "spec.md#User Scenarios & Testing"
+  visual_spec: "visual-spec/"
+
+  user_stories:
+    - US001: "基本影片製作與發布"
+      covered_by:
+        - "MainVideoCreationFlow"
+        - "ScriptInputPage, ScriptEditorPage, VideoPreviewPage, YouTubeUploadPage, CompletionPage"
+        - "tts:generate, gemini:generateScript, replicate:batchGenerate, ffmpeg:mergeVideo, youtube:uploadVideo"
+
+    - US002: "腳本客製化與進階編輯"
+      covered_by:
+        - "ScriptEditorPage (段落編輯功能)"
+        - "VideoPreviewPage (字幕和 Logo 編輯)"
+        - "SubtitleStyle, LogoSettings"
+
+    - US003: "對嘴影片生成"
+      covered_by:
+        - "DIDSettings, DIDVideo"
+        - "did:generateVideo"
+        - "ScriptEditorPage (D-ID 設定面板)"
+
+    - US004: "專案管理與範本功能"
+      covered_by:
+        - "ProjectFile, ProjectSettings"
+        - "file:read, file:write"
+        - "HomePage (載入專案)"
+
+    - US005: "批次製作與排程上傳"
+      covered_by:
+        - "YouTubeUploadPage (排程發布)"
+        - "youtube:uploadVideo (publishAt 參數)"

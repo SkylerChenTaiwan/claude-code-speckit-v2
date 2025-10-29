@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: D-ID API
+  description: |
+    D-ID API 契約定義
+    用於生成 AI 對嘴影片 (將靜態人像照片 + 音檔合成為對嘴影片)
+  version: v1
+  contact:
+    name: D-ID Documentation
+    url: https://docs.d-id.com
+
+servers:
+  - url: https://api.d-id.com
+    description: D-ID API
+
+security:
+  - basicAuth: []
+
+paths:
+  /talks:
+    post:
+      summary: 建立對嘴影片
+      description: 上傳人像圖片和音檔,生成對嘴影片
+      operationId: createTalk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTalkRequest'
+            example:
+              source_url: "https://example.com/portrait.jpg"
+              script:
+                type: "audio"
+                audio_url: "https://example.com/audio.mp3"
+              config:
+                fluent: true
+                pad_audio: 0.0
+      responses:
+        '201':
+          description: 對嘴影片建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Talk'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /talks/{talk_id}:
+    get:
+      summary: 獲取對嘴影片狀態
+      description: 檢查對嘴影片生成進度和結果
+      operationId: getTalk
+      parameters:
+        - name: talk_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 對嘴影片狀態
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Talk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: 刪除對嘴影片
+      description: 刪除已生成的對嘴影片
+      operationId: deleteTalk
+      parameters:
+        - name: talk_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 刪除成功
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: D-ID API Key (使用 API Key 作為 username)
+
+  schemas:
+    CreateTalkRequest:
+      type: object
+      required:
+        - source_url
+        - script
+      properties:
+        source_url:
+          type: string
+          format: uri
+          description: 人像圖片 URL
+          example: "https://example.com/portrait.jpg"
+        script:
+          $ref: '#/components/schemas/Script'
+        config:
+          $ref: '#/components/schemas/TalkConfig'
+        webhook:
+          type: string
+          format: uri
+          description: Webhook URL (完成時通知)
+
+    Script:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: ["text", "audio"]
+          description: 腳本類型
+        input:
+          type: string
+          description: 文字內容 (type=text 時使用)
+        audio_url:
+          type: string
+          format: uri
+          description: 音檔 URL (type=audio 時使用)
+        provider:
+          type: object
+          properties:
+            type:
+              type: string
+              example: "microsoft"
+            voice_id:
+              type: string
+              example: "zh-TW-HsiaoChenNeural"
+
+    TalkConfig:
+      type: object
+      properties:
+        fluent:
+          type: boolean
+          description: 流暢模式 (更自然的嘴型)
+          default: true
+        pad_audio:
+          type: number
+          format: float
+          description: 音檔前後填充時間 (秒)
+          default: 0.0
+        driver_expressions:
+          type: object
+          description: 表情控制
+        result_format:
+          type: string
+          enum: ["mp4", "mov", "gif"]
+          default: "mp4"
+
+    Talk:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 對嘴影片 ID
+          example: "tlk_abc123"
+        status:
+          type: string
+          enum: ["created", "processing", "done", "error"]
+          description: 處理狀態
+          example: "done"
+        result_url:
+          type: string
+          format: uri
+          description: 生成的影片 URL
+          example: "https://d-id-talks.s3.amazonaws.com/abc123.mp4"
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        duration:
+          type: number
+          format: float
+          description: 影片長度 (秒)
+        error:
+          type: object
+          properties:
+            kind:
+              type: string
+            description:
+              type: string
+
+    Error:
+      type: object
+      properties:
+        kind:
+          type: string
+        description:
+          type: string
+
+  responses:
+    BadRequest:
+      description: 請求格式錯誤
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: 授權失敗
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: 對嘴影片不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+# 使用範例:
+#
+# 1. 建立對嘴影片
+# curl -X POST https://api.d-id.com/talks \
+#   -u "YOUR_API_KEY:" \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "source_url": "https://example.com/portrait.jpg",
+#     "script": {
+#       "type": "audio",
+#       "audio_url": "https://example.com/audio.mp3"
+#     },
+#     "config": {"fluent": true}
+#   }'
+#
+# 2. 獲取結果 (輪詢)
+# curl https://api.d-id.com/talks/tlk_abc123 \
+#   -u "YOUR_API_KEY:"
+#
+# 費用計算:
+# - Basic: $0.06 / 秒
+# - Advanced: $0.12 / 秒
+# - 範例: 5 秒影片 = 5 * $0.06 = $0.30
+#
+# 人像圖片要求:
+# - 格式: JPG, PNG
+# - 尺寸: 建議 512x512 或更高
+# - 內容: 清晰的正面人像
+# - 檔案大小: < 5MB

@@ -1,0 +1,814 @@
+openapi: 3.0.3
+info:
+  title: Electron IPC 通訊協定
+  description: |
+    定義 Main Process 和 Renderer Process 之間的 IPC 通訊協定
+    使用 contextBridge 暴露安全的 API 給 Renderer Process
+  version: 1.0.0
+
+# 本文件定義 preload.ts 中暴露的所有 API
+
+components:
+  schemas:
+    # ============================================================
+    # 檔案系統相關
+    # ============================================================
+
+    FileReadRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          description: 檔案絕對路徑
+
+    FileReadResponse:
+      type: object
+      properties:
+        content:
+          type: string
+          description: 檔案內容
+        error:
+          type: string
+          description: 錯誤訊息（若有）
+
+    FileWriteRequest:
+      type: object
+      required:
+        - path
+        - content
+      properties:
+        path:
+          type: string
+          description: 檔案絕對路徑
+        content:
+          type: string
+          description: 要寫入的內容
+
+    FileWriteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+
+    SelectFileRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: 對話框標題
+          default: "選擇檔案"
+        filters:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "專案檔案"
+              extensions:
+                type: array
+                items:
+                  type: string
+                example: ["json"]
+        defaultPath:
+          type: string
+          description: 預設路徑
+          example: "~/Documents/YTMaker3"
+
+    SelectFileResponse:
+      type: object
+      properties:
+        filePath:
+          type: string
+          description: 選擇的檔案路徑（若取消則為 null）
+        canceled:
+          type: boolean
+
+    SelectDirectoryRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          default: "選擇資料夾"
+        defaultPath:
+          type: string
+
+    SelectDirectoryResponse:
+      type: object
+      properties:
+        directoryPath:
+          type: string
+        canceled:
+          type: boolean
+
+    # ============================================================
+    # Google TTS API 相關
+    # ============================================================
+
+    TTSGenerateRequest:
+      type: object
+      required:
+        - text
+        - voiceId
+      properties:
+        text:
+          type: string
+          description: 要合成的文字
+        voiceId:
+          type: string
+          description: 語音 ID
+          example: "zh-TW-HsiaoChenNeural"
+        outputPath:
+          type: string
+          description: 音檔輸出路徑
+
+    TTSGenerateResponse:
+      type: object
+      properties:
+        audioPath:
+          type: string
+          description: 生成的音檔路徑
+        timecodes:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              startTime:
+                type: number
+              endTime:
+                type: number
+        error:
+          type: string
+
+    TTSListVoicesRequest:
+      type: object
+      properties:
+        languageCode:
+          type: string
+          default: "zh-TW"
+
+    TTSListVoicesResponse:
+      type: object
+      properties:
+        voices:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              gender:
+                type: string
+              languageCode:
+                type: string
+        error:
+          type: string
+
+    # ============================================================
+    # Gemini API 相關
+    # ============================================================
+
+    GeminiGenerateScriptRequest:
+      type: object
+      required:
+        - scriptContent
+        - timecodes
+      properties:
+        scriptContent:
+          type: string
+          description: 原始文稿內容
+        timecodes:
+          type: array
+          description: TTS 生成的時間標記
+          items:
+            type: object
+        systemPrompt:
+          type: string
+          description: 自訂 system prompt（可選）
+
+    GeminiGenerateScriptResponse:
+      type: object
+      properties:
+        paragraphs:
+          type: array
+          items:
+            type: object
+            properties:
+              paragraphId:
+                type: string
+              text:
+                type: string
+              startTime:
+                type: number
+              endTime:
+                type: number
+              imagePrompt:
+                type: string
+              imagePromptZh:
+                type: string
+        usageMetadata:
+          type: object
+          properties:
+            inputTokens:
+              type: integer
+            outputTokens:
+              type: integer
+        error:
+          type: string
+
+    # ============================================================
+    # Replicate API 相關
+    # ============================================================
+
+    ReplicateGenerateImageRequest:
+      type: object
+      required:
+        - prompt
+        - outputPath
+      properties:
+        prompt:
+          type: string
+          description: 圖片生成提示詞（英文）
+        style:
+          type: string
+          enum: ["realistic", "cute-illustration", "chinese-classic", "children"]
+          default: "realistic"
+        outputPath:
+          type: string
+          description: 圖片儲存路徑
+        cacheHash:
+          type: string
+          description: 快取 hash（若已快取則直接返回）
+
+    ReplicateGenerateImageResponse:
+      type: object
+      properties:
+        imagePath:
+          type: string
+          description: 生成的圖片路徑
+        fromCache:
+          type: boolean
+          description: 是否從快取取得
+        error:
+          type: string
+
+    ReplicateBatchGenerateRequest:
+      type: object
+      required:
+        - requests
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplicateGenerateImageRequest'
+        concurrency:
+          type: integer
+          description: 並發數量
+          default: 3
+
+    ReplicateBatchGenerateResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReplicateGenerateImageResponse'
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              error:
+                type: string
+
+    # ============================================================
+    # D-ID API 相關
+    # ============================================================
+
+    DIDGenerateVideoRequest:
+      type: object
+      required:
+        - portraitImagePath
+        - audioPath
+        - outputPath
+      properties:
+        portraitImagePath:
+          type: string
+          description: 人像圖片路徑
+        audioPath:
+          type: string
+          description: 音檔路徑
+        startTime:
+          type: number
+          description: 音檔起始時間（秒）
+        endTime:
+          type: number
+          description: 音檔結束時間（秒）
+        outputPath:
+          type: string
+          description: 輸出影片路徑
+
+    DIDGenerateVideoResponse:
+      type: object
+      properties:
+        videoPath:
+          type: string
+        duration:
+          type: number
+        error:
+          type: string
+
+    # ============================================================
+    # FFmpeg 相關
+    # ============================================================
+
+    FFmpegMergeVideoRequest:
+      type: object
+      required:
+        - segments
+        - outputPath
+      properties:
+        segments:
+          type: array
+          description: 影片片段列表
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: ["image", "video"]
+              path:
+                type: string
+                description: 圖片或影片路徑
+              duration:
+                type: number
+                description: 持續時間（秒，僅圖片需要）
+              startTime:
+                type: number
+              endTime:
+                type: number
+        audioPath:
+          type: string
+          description: 配音音檔路徑
+        subtitles:
+          type: array
+          description: 字幕列表
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              startTime:
+                type: number
+              endTime:
+                type: number
+        subtitleStyle:
+          type: object
+          description: 字幕樣式
+        logo:
+          type: object
+          description: Logo 設定
+          properties:
+            imagePath:
+              type: string
+            position:
+              type: object
+              properties:
+                x:
+                  type: integer
+                y:
+                  type: integer
+            scale:
+              type: number
+        outputPath:
+          type: string
+          description: 輸出影片路徑
+
+    FFmpegMergeVideoResponse:
+      type: object
+      properties:
+        videoPath:
+          type: string
+        duration:
+          type: number
+        fileSize:
+          type: integer
+        error:
+          type: string
+
+    FFmpegProgressEvent:
+      type: object
+      description: FFmpeg 進度事件
+      properties:
+        stage:
+          type: string
+          enum: ["merging", "encoding", "finalizing"]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        currentTime:
+          type: number
+          description: 目前處理時間（秒）
+        totalTime:
+          type: number
+          description: 總時間（秒）
+
+    # ============================================================
+    # YouTube API 相關
+    # ============================================================
+
+    YouTubeAuthRequest:
+      type: object
+      properties:
+        forceRefresh:
+          type: boolean
+          default: false
+
+    YouTubeAuthResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        email:
+          type: string
+          description: 已認證的 Google 帳號
+        error:
+          type: string
+
+    YouTubeListChannelsResponse:
+      type: object
+      properties:
+        channels:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              thumbnailUrl:
+                type: string
+        error:
+          type: string
+
+    YouTubeUploadVideoRequest:
+      type: object
+      required:
+        - videoPath
+        - title
+      properties:
+        videoPath:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        categoryId:
+          type: string
+          default: "22"
+        privacyStatus:
+          type: string
+          enum: ["public", "private", "unlisted"]
+          default: "private"
+        thumbnailPath:
+          type: string
+          description: 自訂縮圖路徑（可選）
+        publishAt:
+          type: string
+          format: date-time
+          description: 排程發布時間（可選）
+
+    YouTubeUploadVideoResponse:
+      type: object
+      properties:
+        videoId:
+          type: string
+        videoUrl:
+          type: string
+        quotaUsed:
+          type: integer
+        error:
+          type: string
+
+    YouTubeUploadProgressEvent:
+      type: object
+      properties:
+        stage:
+          type: string
+          enum: ["uploading", "processing", "completed"]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        bytesUploaded:
+          type: integer
+        totalBytes:
+          type: integer
+
+    # ============================================================
+    # API 金鑰管理
+    # ============================================================
+
+    APIKeyGetRequest:
+      type: object
+      required:
+        - service
+      properties:
+        service:
+          type: string
+          enum: ["google-tts", "gemini", "replicate", "did", "youtube"]
+
+    APIKeyGetResponse:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          description: API 金鑰（若未設定則為 null）
+        exists:
+          type: boolean
+
+    APIKeySetRequest:
+      type: object
+      required:
+        - service
+        - apiKey
+      properties:
+        service:
+          type: string
+          enum: ["google-tts", "gemini", "replicate", "did", "youtube"]
+        apiKey:
+          type: string
+
+    APIKeySetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+
+    APIKeyDeleteRequest:
+      type: object
+      required:
+        - service
+      properties:
+        service:
+          type: string
+
+    # ============================================================
+    # 快取管理
+    # ============================================================
+
+    CacheGetSizeResponse:
+      type: object
+      properties:
+        totalSize:
+          type: integer
+          description: 總大小（bytes）
+        itemCount:
+          type: integer
+          description: 快取項目數量
+        categories:
+          type: object
+          properties:
+            images:
+              type: integer
+            videos:
+              type: integer
+
+    CacheClearRequest:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: ["all", "images", "videos"]
+          default: "all"
+        olderThan:
+          type: integer
+          description: 清除 X 天前的快取（可選）
+
+    CacheClearResponse:
+      type: object
+      properties:
+        deletedSize:
+          type: integer
+        deletedCount:
+          type: integer
+
+# ============================================================
+# IPC Channel 定義
+# ============================================================
+
+# 以下是 preload.ts 中暴露的所有 API
+# 使用方式: window.electronAPI.{functionName}(params)
+
+x-ipc-channels:
+  # 檔案系統
+  file:read:
+    type: invoke
+    request: FileReadRequest
+    response: FileReadResponse
+
+  file:write:
+    type: invoke
+    request: FileWriteRequest
+    response: FileWriteResponse
+
+  file:select:
+    type: invoke
+    request: SelectFileRequest
+    response: SelectFileResponse
+
+  directory:select:
+    type: invoke
+    request: SelectDirectoryRequest
+    response: SelectDirectoryResponse
+
+  # Google TTS
+  tts:generate:
+    type: invoke
+    request: TTSGenerateRequest
+    response: TTSGenerateResponse
+    description: 生成語音音檔和時間標記
+
+  tts:listVoices:
+    type: invoke
+    request: TTSListVoicesRequest
+    response: TTSListVoicesResponse
+
+  # Gemini
+  gemini:generateScript:
+    type: invoke
+    request: GeminiGenerateScriptRequest
+    response: GeminiGenerateScriptResponse
+    description: 根據文稿和時間標記生成結構化腳本
+
+  # Replicate
+  replicate:generateImage:
+    type: invoke
+    request: ReplicateGenerateImageRequest
+    response: ReplicateGenerateImageResponse
+
+  replicate:batchGenerate:
+    type: invoke
+    request: ReplicateBatchGenerateRequest
+    response: ReplicateBatchGenerateResponse
+    description: 批次生成多張圖片（含並發控制）
+
+  # D-ID
+  did:generateVideo:
+    type: invoke
+    request: DIDGenerateVideoRequest
+    response: DIDGenerateVideoResponse
+
+  # FFmpeg
+  ffmpeg:mergeVideo:
+    type: invoke
+    request: FFmpegMergeVideoRequest
+    response: FFmpegMergeVideoResponse
+    description: 合成最終影片（圖片+音檔+字幕+Logo）
+
+  ffmpeg:progress:
+    type: on
+    event: FFmpegProgressEvent
+    description: 訂閱 FFmpeg 進度事件
+
+  # YouTube
+  youtube:auth:
+    type: invoke
+    request: YouTubeAuthRequest
+    response: YouTubeAuthResponse
+    description: YouTube OAuth 2.0 認證
+
+  youtube:listChannels:
+    type: invoke
+    response: YouTubeListChannelsResponse
+
+  youtube:uploadVideo:
+    type: invoke
+    request: YouTubeUploadVideoRequest
+    response: YouTubeUploadVideoResponse
+
+  youtube:uploadProgress:
+    type: on
+    event: YouTubeUploadProgressEvent
+    description: 訂閱上傳進度事件
+
+  # API 金鑰管理
+  apiKey:get:
+    type: invoke
+    request: APIKeyGetRequest
+    response: APIKeyGetResponse
+    description: 從 macOS Keychain 讀取 API 金鑰
+
+  apiKey:set:
+    type: invoke
+    request: APIKeySetRequest
+    response: APIKeySetResponse
+    description: 儲存 API 金鑰到 macOS Keychain
+
+  apiKey:delete:
+    type: invoke
+    request: APIKeyDeleteRequest
+    response: APIKeySetResponse
+
+  # 快取管理
+  cache:getSize:
+    type: invoke
+    response: CacheGetSizeResponse
+
+  cache:clear:
+    type: invoke
+    request: CacheClearRequest
+    response: CacheClearResponse
+
+  # 應用程式控制
+  app:getVersion:
+    type: invoke
+    response:
+      type: object
+      properties:
+        version:
+          type: string
+
+  app:openExternal:
+    type: invoke
+    request:
+      type: object
+      properties:
+        url:
+          type: string
+    description: 在預設瀏覽器開啟 URL
+
+# ============================================================
+# TypeScript Interface 範例
+# ============================================================
+
+# src/preload/preload.ts 應該暴露以下 API:
+#
+# interface ElectronAPI {
+#   // 檔案系統
+#   readFile: (path: string) => Promise<{ content?: string; error?: string }>;
+#   writeFile: (path: string, content: string) => Promise<{ success: boolean; error?: string }>;
+#   selectFile: (options?: SelectFileOptions) => Promise<{ filePath?: string; canceled: boolean }>;
+#   selectDirectory: (options?: SelectDirectoryOptions) => Promise<{ directoryPath?: string; canceled: boolean }>;
+#
+#   // Google TTS
+#   generateTTS: (params: TTSGenerateRequest) => Promise<TTSGenerateResponse>;
+#   listVoices: (languageCode?: string) => Promise<TTSListVoicesResponse>;
+#
+#   // Gemini
+#   generateScript: (params: GeminiGenerateScriptRequest) => Promise<GeminiGenerateScriptResponse>;
+#
+#   // Replicate
+#   generateImage: (params: ReplicateGenerateImageRequest) => Promise<ReplicateGenerateImageResponse>;
+#   batchGenerateImages: (params: ReplicateBatchGenerateRequest) => Promise<ReplicateBatchGenerateResponse>;
+#
+#   // D-ID
+#   generateDIDVideo: (params: DIDGenerateVideoRequest) => Promise<DIDGenerateVideoResponse>;
+#
+#   // FFmpeg
+#   mergeVideo: (params: FFmpegMergeVideoRequest) => Promise<FFmpegMergeVideoResponse>;
+#   onFFmpegProgress: (callback: (event: FFmpegProgressEvent) => void) => void;
+#
+#   // YouTube
+#   authenticateYouTube: (forceRefresh?: boolean) => Promise<YouTubeAuthResponse>;
+#   listChannels: () => Promise<YouTubeListChannelsResponse>;
+#   uploadVideo: (params: YouTubeUploadVideoRequest) => Promise<YouTubeUploadVideoResponse>;
+#   onUploadProgress: (callback: (event: YouTubeUploadProgressEvent) => void) => void;
+#
+#   // API 金鑰
+#   getAPIKey: (service: string) => Promise<APIKeyGetResponse>;
+#   setAPIKey: (service: string, apiKey: string) => Promise<APIKeySetResponse>;
+#   deleteAPIKey: (service: string) => Promise<APIKeySetResponse>;
+#
+#   // 快取
+#   getCacheSize: () => Promise<CacheGetSizeResponse>;
+#   clearCache: (options?: CacheClearRequest) => Promise<CacheClearResponse>;
+#
+#   // 應用程式
+#   getAppVersion: () => Promise<{ version: string }>;
+#   openExternal: (url: string) => Promise<void>;
+# }
+#
+# declare global {
+#   interface Window {
+#     electronAPI: ElectronAPI;
+#   }
+# }

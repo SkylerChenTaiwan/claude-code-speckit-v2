@@ -1,0 +1,340 @@
+# Contract Expected for WP004: 腳本編輯功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP004"
+  name: "腳本編輯功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  Script:
+    description: "腳本資料"
+    source: "design-spec.yaml#data_models.Script"
+
+    fields:
+      generatedAt:
+        type: "timestamp"
+        required: true
+        description: "腳本生成時間"
+        example: "2025-10-29T10:35:00Z"
+
+      systemPrompt:
+        type: "string"
+        required: true
+        description: "使用的 Gemini system prompt"
+        example: "你是一個專業的影片腳本生成助手..."
+
+      paragraphs:
+        type: "array"
+        required: true
+        description: "腳本段落陣列"
+        item_ref: "ScriptParagraph"
+
+  ScriptParagraph:
+    description: "腳本段落"
+    source: "design-spec.yaml#data_models.ScriptParagraph"
+
+    fields:
+      paragraphId:
+        type: "string"
+        required: true
+        description: "段落唯一識別碼"
+        example: "para-001"
+
+      text:
+        type: "string"
+        required: true
+        description: "段落文字內容"
+        example: "歡迎來到我的頻道,今天要分享..."
+
+      startTime:
+        type: "number"
+        required: true
+        description: "段落開始時間 (秒)"
+        example: 0.0
+
+      endTime:
+        type: "number"
+        required: true
+        description: "段落結束時間 (秒)"
+        example: 5.2
+
+      imagePrompt:
+        type: "string"
+        required: true
+        description: "圖片生成提示詞 (英文)"
+        example: "A modern YouTube channel banner with colorful background"
+
+      imagePromptZh:
+        type: "string"
+        required: false
+        description: "圖片生成提示詞 (中文,供使用者檢視)"
+        example: "一個色彩繽紛的現代 YouTube 頻道橫幅"
+
+  DIDSettings:
+    description: "D-ID 對嘴設定"
+    source: "design-spec.yaml#data_models.DIDSettings"
+
+    fields:
+      enabled:
+        type: "boolean"
+        required: true
+        description: "是否啟用 D-ID 對嘴功能"
+        example: true
+
+      position:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "enum"
+              value: ["none", "opening-only", "ending-only", "both"]
+              error_message: "無效的 D-ID 位置"
+        description: "對嘴影片使用位置"
+        example: "opening-only"
+
+      portraitImagePath:
+        type: "string"
+        required: false
+        description: "上傳的人像圖片路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/portrait.png"
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  # 無專屬 IPC channel，使用 file:select 上傳人像圖片
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  ScriptEditorPage:
+    name: "ScriptEditorPage"
+    type: "page"
+    description: "腳本編輯頁面,編輯段落、選擇圖片風格、設定 D-ID"
+    source: "design-spec.yaml#ui_components.ScriptEditorPage"
+
+    state:
+      paragraphs:
+        type: "array"
+        initial_value: []
+        description: "腳本段落陣列"
+      selectedParagraphIndex:
+        type: "integer"
+        initial_value: 0
+        description: "目前選擇的段落索引"
+      imageStyle:
+        type: "string"
+        initial_value: "realistic"
+        description: "圖片風格"
+      didEnabled:
+        type: "boolean"
+        initial_value: false
+        description: "是否啟用 D-ID"
+      didPosition:
+        type: "string"
+        initial_value: "none"
+        description: "D-ID 位置"
+      portraitImage:
+        type: "string"
+        initial_value: null
+        description: "人像圖片路徑"
+
+    elements:
+      - id: "paragraph-list"
+        type: "list"
+        testId: "paragraph-list"
+        items: "paragraphs"
+
+      - id: "paragraph-text-editor"
+        type: "textarea"
+        testId: "paragraph-text"
+        placeholder: "編輯段落文字..."
+
+      - id: "image-prompt-editor"
+        type: "textarea"
+        testId: "image-prompt"
+        placeholder: "編輯圖片提示詞..."
+
+      - id: "image-style-selector"
+        type: "select"
+        testId: "image-style-selector"
+        options: ["realistic", "cute-illustration", "chinese-classic", "children"]
+
+      - id: "did-enable-checkbox"
+        type: "checkbox"
+        testId: "did-enable"
+        label: "啟用 D-ID 對嘴功能"
+
+      - id: "did-position-selector"
+        type: "select"
+        testId: "did-position"
+        options: ["none", "opening-only", "ending-only", "both"]
+
+      - id: "upload-portrait-button"
+        type: "button"
+        label: "上傳人像圖片"
+        testId: "upload-portrait-btn"
+
+      - id: "generate-media-button"
+        type: "button"
+        label: "生成媒體"
+        testId: "generate-media-btn"
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "上傳人像圖片"
+        request_body:
+          title: "選擇人像圖片"
+          filters:
+            - name: "圖片檔案"
+              extensions: ["png", "jpg", "jpeg"]
+        on_success:
+          action: "驗證圖片比例(16:9)並儲存路徑"
+        on_error:
+          action: "顯示錯誤:圖片比例必須為 16:9"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "paragraphText"
+      rules:
+        - type: "minLength"
+          value: 1
+          error_message: "段落文字不能為空"
+
+    - field: "imagePrompt"
+      rules:
+        - type: "minLength"
+          value: 1
+          error_message: "圖片提示詞不能為空"
+
+    - field: "portraitImage"
+      rules:
+        - type: "aspectRatio"
+          value: "16:9"
+          error_message: "圖片比例必須為 16:9"
+        - type: "maxFileSize"
+          value: 5242880
+          error_message: "檔案大小不能超過 5MB"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  validation:
+    paragraph_text_empty: "段落文字不能為空"
+    image_prompt_empty: "圖片提示詞不能為空"
+    portrait_aspect_ratio: "圖片比例必須為 16:9"
+    portrait_file_size: "檔案大小不能超過 5MB"
+    did_no_portrait: "啟用 D-ID 時必須上傳人像圖片"
+
+  ui:
+    upload_portrait_error: "顯示錯誤:圖片比例必須為 16:9"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    frontend:
+      - component: "ScriptEditorPage"
+        tests:
+          - description: "渲染所有段落列表"
+            type: "render"
+          - description: "點擊段落切換到該段落編輯"
+            type: "interaction"
+          - description: "編輯段落文字即時儲存(debounce)"
+            type: "interaction"
+          - description: "選擇圖片風格更新 projectStore"
+            type: "interaction"
+          - description: "啟用 D-ID 時顯示人像上傳介面"
+            type: "interaction"
+          - description: "驗證人像圖片比例(16:9)"
+            type: "validation"
+          - description: "所有段落提示詞不為空才能生成媒體"
+            type: "validation"
+
+  integration_tests:
+    - description: "完整的腳本編輯流程"
+      steps:
+        - "載入 Gemini 生成的腳本"
+        - "編輯段落文字和圖片提示詞"
+        - "選擇圖片風格"
+        - "啟用 D-ID 並上傳人像圖片"
+        - "點擊生成媒體"
+
+  e2e_tests:
+    - description: "腳本編輯與 D-ID 設定"
+      steps:
+        - "進入腳本編輯頁面"
+        - "修改段落文字"
+        - "選擇圖片風格為可愛插畫"
+        - "啟用 D-ID,選擇僅開頭"
+        - "上傳 16:9 人像圖片"
+        - "驗證所有設定已儲存"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  renderer_process:
+    - "src/renderer/pages/ScriptEditorPage/ScriptEditorPage.tsx"
+    - "src/renderer/pages/ScriptEditorPage/ScriptEditorPage.test.tsx"
+    - "src/renderer/pages/ScriptEditorPage/components/ParagraphList.tsx"
+    - "src/renderer/pages/ScriptEditorPage/components/ParagraphEditor.tsx"
+    - "src/renderer/pages/ScriptEditorPage/components/ImageStyleSelector.tsx"
+    - "src/renderer/pages/ScriptEditorPage/components/DIDSettingsPanel.tsx"
+    - "src/renderer/utils/imageValidator.ts"
+
+  tests:
+    - "tests/e2e/script-editor.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US002"
+    - "US003"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/03-script-editor-page.md"
+    contracts:
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.Script"
+      - "design-spec.yaml#data_models.ScriptParagraph"
+      - "design-spec.yaml#data_models.DIDSettings"
+      - "design-spec.yaml#ui_components.ScriptEditorPage"
+      - "design-spec.yaml#validation_rules.portraitImage"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 Script 欄位名稱必須與契約一致"
+    - "所有 ScriptParagraph 欄位名稱必須與契約一致"
+    - "所有 DIDSettings 欄位名稱必須與契約一致"
+
+  ui_elements:
+    - "所有 UI 元素 ID 必須與契約一致"
+    - "段落列表、編輯器、風格選擇器、D-ID 設定面板"
+
+  validation_rules:
+    - "段落文字不能為空驗證已實作"
+    - "圖片提示詞不能為空驗證已實作"
+    - "人像圖片 16:9 比例驗證已實作"
+    - "檔案大小 5MB 限制驗證已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"
