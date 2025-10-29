@@ -1,0 +1,231 @@
+# Contract Expected for WP006: D-ID 對嘴影片功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP006"
+  name: "D-ID 對嘴影片功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  DIDVideo:
+    description: "D-ID 對嘴影片"
+    source: "design-spec.yaml#data_models.DIDVideo"
+
+    fields:
+      paragraphId:
+        type: "string"
+        required: true
+        description: "對應的段落 ID"
+        example: "para-001"
+
+      videoPath:
+        type: "string"
+        required: true
+        description: "對嘴影片檔案路徑"
+        example: "~/Documents/YTMaker3/我的影片專案/did-videos/para-001.mp4"
+
+      generatedAt:
+        type: "timestamp"
+        required: true
+        description: "影片生成時間"
+        example: "2025-10-29T10:45:00Z"
+
+      duration:
+        type: "number"
+        required: true
+        description: "影片長度 (秒)"
+        example: 5.2
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  did_generateVideo:
+    channel: "did:generateVideo"
+    type: "invoke"
+    description: "生成 D-ID 對嘴影片"
+    source: "design-spec.yaml#api_endpoints.did_generateVideo"
+
+    request:
+      schema:
+        type: "object"
+        required: ["portraitImagePath", "audioPath", "outputPath"]
+        properties:
+          portraitImagePath:
+            type: "string"
+            description: "人像圖片路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "人像圖片路徑不能為空"
+          audioPath:
+            type: "string"
+            description: "音檔路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "音檔路徑不能為空"
+          startTime:
+            type: "number"
+            description: "音檔起始時間(秒)"
+          endTime:
+            type: "number"
+            description: "音檔結束時間(秒)"
+          outputPath:
+            type: "string"
+            description: "輸出影片路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "輸出路徑不能為空"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            videoPath:
+              type: "string"
+              description: "生成的影片路徑"
+            duration:
+              type: "number"
+              description: "影片長度(秒)"
+            error:
+              type: "string"
+              description: "錯誤訊息(若有)"
+        example:
+          videoPath: "~/Documents/YTMaker3/我的影片專案/did-videos/para-001.mp4"
+          duration: 5.2
+          error: null
+
+      errors:
+        - error_message: "API 連線失敗"
+          condition: "網路錯誤或 D-ID API 無回應"
+        - error_message: "API 金鑰無效或已過期"
+          condition: "401 錯誤"
+        - error_message: "生成失敗"
+          condition: "D-ID API 返回錯誤"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  main_process:
+    - field: "portraitImagePath"
+      rules:
+        - type: "required"
+          error_message: "人像圖片路徑不能為空"
+
+    - field: "audioPath"
+      rules:
+        - type: "required"
+          error_message: "音檔路徑不能為空"
+
+    - field: "outputPath"
+      rules:
+        - type: "required"
+          error_message: "輸出路徑不能為空"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  api:
+    connection_failed: "API 連線失敗"
+    invalid_api_key: "API 金鑰無效或已過期"
+    generation_failed: "生成失敗"
+
+  validation:
+    portrait_path_empty: "人像圖片路徑不能為空"
+    audio_path_empty: "音檔路徑不能為空"
+    output_path_empty: "輸出路徑不能為空"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "DIDService"
+        tests:
+          - description: "生成對嘴影片成功"
+            type: "success"
+          - description: "API 金鑰無效時返回錯誤"
+            type: "error"
+          - description: "生成失敗時提供重試選項"
+            type: "retry"
+
+      - component: "didHandlers"
+        tests:
+          - description: "did:generateVideo 成功生成影片"
+            type: "success"
+          - description: "生成失敗時返回詳細錯誤訊息"
+            type: "error"
+
+  integration_tests:
+    - description: "完整的 D-ID 影片生成流程"
+      steps:
+        - "腳本編輯頁面啟用 D-ID"
+        - "上傳人像圖片"
+        - "呼叫 did:generateVideo"
+        - "生成開頭段落對嘴影片"
+        - "儲存影片路徑到專案檔案"
+
+  e2e_tests:
+    - description: "D-ID 對嘴影片生成"
+      steps:
+        - "啟用 D-ID,選擇僅開頭"
+        - "上傳 16:9 人像圖片"
+        - "點擊生成媒體"
+        - "等待對嘴影片生成"
+        - "驗證影片已儲存"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/didHandlers.ts"
+    - "src/main/ipc/didHandlers.test.ts"
+    - "src/main/services/DIDService.ts"
+    - "src/main/services/DIDService.test.ts"
+
+  tests:
+    - "tests/e2e/did-video-generation.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US003"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/03-script-editor-page.md"
+    contracts:
+      - "visual-spec/contracts/electron-ipc.yaml"
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.DIDVideo"
+      - "design-spec.yaml#api_endpoints.did_generateVideo"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 DIDVideo 欄位名稱必須與契約一致"
+
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(did:generateVideo)"
+
+  request_response:
+    - "Request/Response 欄位名稱必須完全一致"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

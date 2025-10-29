@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: Google Cloud Text-to-Speech API
+  description: |
+    Google Cloud Text-to-Speech API 契約定義
+    用於將文稿轉換為語音音檔並提取時間標記
+  version: v1
+  contact:
+    name: Google Cloud TTS Documentation
+    url: https://cloud.google.com/text-to-speech/docs
+
+servers:
+  - url: https://texttospeech.googleapis.com/v1
+    description: Google Cloud TTS API v1
+
+security:
+  - apiKey: []
+
+paths:
+  /text:synthesize:
+    post:
+      summary: 合成語音
+      description: 將文字轉換為語音音檔,並返回音檔和時間標記
+      operationId: synthesizeText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SynthesizeSpeechRequest'
+            example:
+              input:
+                text: "這是我的影片文稿內容,包含多個段落。今天要介紹的主題是..."
+              voice:
+                languageCode: "zh-TW"
+                name: "zh-TW-HsiaoChenNeural"
+                ssmlGender: "FEMALE"
+              audioConfig:
+                audioEncoding: "MP3"
+                speakingRate: 1.0
+                pitch: 0.0
+                volumeGainDb: 0.0
+                effectsProfileId:
+                  - "medium-bluetooth-speaker-class-device"
+              enableTimePointing:
+                - "TIMEPOINT_TYPE_SSML_MARK"
+      responses:
+        '200':
+          description: 成功合成語音
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SynthesizeSpeechResponse'
+              example:
+                audioContent: "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAAA..."
+                timepoints:
+                  - markName: "sentence_0"
+                    timeSeconds: 0.0
+                  - markName: "sentence_1"
+                    timeSeconds: 3.2
+                  - markName: "sentence_2"
+                    timeSeconds: 7.5
+                audioConfig:
+                  audioEncoding: "MP3"
+                  speakingRate: 1.0
+                  pitch: 0.0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-Goog-Api-Key
+      description: Google Cloud API 金鑰
+
+  schemas:
+    SynthesizeSpeechRequest:
+      type: object
+      required:
+        - input
+        - voice
+        - audioConfig
+      properties:
+        input:
+          $ref: '#/components/schemas/SynthesisInput'
+        voice:
+          $ref: '#/components/schemas/VoiceSelectionParams'
+        audioConfig:
+          $ref: '#/components/schemas/AudioConfig'
+        enableTimePointing:
+          type: array
+          items:
+            type: string
+            enum:
+              - TIMEPOINT_TYPE_SSML_MARK
+          description: 啟用時間標記 (用於生成字幕)
+          example:
+            - "TIMEPOINT_TYPE_SSML_MARK"
+
+    SynthesisInput:
+      type: object
+      description: 要合成的文字內容
+      properties:
+        text:
+          type: string
+          description: 純文字內容
+          example: "這是我的影片文稿內容..."
+        ssml:
+          type: string
+          description: SSML 格式的文字 (可選,用於進階控制)
+          example: |
+            <speak>
+              這是第一段。
+              <mark name="sentence_1"/>
+              這是第二段。
+            </speak>
+
+    VoiceSelectionParams:
+      type: object
+      required:
+        - languageCode
+      properties:
+        languageCode:
+          type: string
+          description: 語言代碼
+          example: "zh-TW"
+          enum:
+            - "zh-TW"
+            - "zh-CN"
+            - "en-US"
+        name:
+          type: string
+          description: 語音名稱
+          example: "zh-TW-HsiaoChenNeural"
+          enum:
+            - "zh-TW-HsiaoChenNeural"  # 女性,標準
+            - "zh-TW-YunJheNeural"      # 男性,標準
+            - "zh-TW-HsiaoYuNeural"     # 女性,活潑
+            - "zh-TW-YunZheNeural"      # 男性,專業
+        ssmlGender:
+          type: string
+          description: 性別
+          enum:
+            - "FEMALE"
+            - "MALE"
+            - "NEUTRAL"
+          example: "FEMALE"
+
+    AudioConfig:
+      type: object
+      required:
+        - audioEncoding
+      properties:
+        audioEncoding:
+          type: string
+          description: 音檔編碼格式
+          enum:
+            - "MP3"
+            - "LINEAR16"
+            - "OGG_OPUS"
+          example: "MP3"
+        speakingRate:
+          type: number
+          format: float
+          description: 語速 (0.25 - 4.0)
+          minimum: 0.25
+          maximum: 4.0
+          default: 1.0
+          example: 1.0
+        pitch:
+          type: number
+          format: float
+          description: 音調 (-20.0 - 20.0)
+          minimum: -20.0
+          maximum: 20.0
+          default: 0.0
+          example: 0.0
+        volumeGainDb:
+          type: number
+          format: float
+          description: 音量增益 (dB)
+          minimum: -96.0
+          maximum: 16.0
+          default: 0.0
+          example: 0.0
+        sampleRateHertz:
+          type: integer
+          description: 取樣率 (Hz)
+          example: 24000
+        effectsProfileId:
+          type: array
+          items:
+            type: string
+          description: 音效配置檔 (優化特定播放裝置)
+          example:
+            - "medium-bluetooth-speaker-class-device"
+
+    SynthesizeSpeechResponse:
+      type: object
+      required:
+        - audioContent
+      properties:
+        audioContent:
+          type: string
+          format: byte
+          description: Base64 編碼的音檔內容
+          example: "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA..."
+        timepoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Timepoint'
+          description: 時間標記陣列
+        audioConfig:
+          $ref: '#/components/schemas/AudioConfig'
+
+    Timepoint:
+      type: object
+      description: 時間標記 (用於生成字幕)
+      properties:
+        markName:
+          type: string
+          description: 標記名稱 (通常是句子編號)
+          example: "sentence_0"
+        timeSeconds:
+          type: number
+          format: double
+          description: 時間 (秒)
+          example: 0.0
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              description: HTTP 錯誤碼
+              example: 400
+            message:
+              type: string
+              description: 錯誤訊息
+              example: "Invalid voice name"
+            status:
+              type: string
+              description: 錯誤狀態
+              example: "INVALID_ARGUMENT"
+            details:
+              type: array
+              items:
+                type: object
+              description: 詳細錯誤資訊
+
+  responses:
+    BadRequest:
+      description: 請求格式錯誤或參數無效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: 400
+              message: "Invalid voice name: zh-TW-InvalidVoice"
+              status: "INVALID_ARGUMENT"
+
+    Unauthorized:
+      description: API 金鑰無效或缺失
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: 401
+              message: "API key not valid. Please pass a valid API key."
+              status: "UNAUTHENTICATED"
+
+    TooManyRequests:
+      description: 超過 API 呼叫限制
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: 429
+              message: "Quota exceeded for quota metric 'Requests' and limit 'Requests per minute'"
+              status: "RESOURCE_EXHAUSTED"
+
+    InternalError:
+      description: 伺服器內部錯誤
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: 500
+              message: "Internal server error"
+              status: "INTERNAL"
+
+# 使用範例
+#
+# 1. 基本語音合成
+# curl -X POST https://texttospeech.googleapis.com/v1/text:synthesize \
+#   -H "X-Goog-Api-Key: YOUR_API_KEY" \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "input": {"text": "這是測試文稿"},
+#     "voice": {
+#       "languageCode": "zh-TW",
+#       "name": "zh-TW-HsiaoChenNeural"
+#     },
+#     "audioConfig": {"audioEncoding": "MP3"}
+#   }'
+#
+# 2. 帶時間標記的語音合成 (用於字幕)
+# curl -X POST https://texttospeech.googleapis.com/v1/text:synthesize \
+#   -H "X-Goog-Api-Key: YOUR_API_KEY" \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "input": {
+#       "ssml": "<speak>這是第一句。<mark name=\"s1\"/>這是第二句。</speak>"
+#     },
+#     "voice": {
+#       "languageCode": "zh-TW",
+#       "name": "zh-TW-HsiaoChenNeural"
+#     },
+#     "audioConfig": {"audioEncoding": "MP3"},
+#     "enableTimePointing": ["TIMEPOINT_TYPE_SSML_MARK"]
+#   }'
+#
+# 費用計算:
+# - WaveNet 語音: $0.000016 / 字元
+# - Neural2 語音: $0.000016 / 字元
+# - 範例: 500 字文稿 = 500 * $0.000016 = $0.008

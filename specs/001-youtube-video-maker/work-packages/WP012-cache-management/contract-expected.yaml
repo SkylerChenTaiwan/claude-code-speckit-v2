@@ -1,0 +1,139 @@
+# Contract Expected for WP012: 快取管理功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP012"
+  name: "快取管理功能"
+  type: "full-stack-feature"
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  cache_getSize:
+    channel: "cache:getSize"
+    type: "invoke"
+    description: "取得快取大小資訊"
+    source: "design-spec.yaml#api_endpoints.cache_getSize"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            totalSize:
+              type: "integer"
+              description: "總大小(bytes)"
+            itemCount:
+              type: "integer"
+              description: "快取項目數量"
+            categories:
+              type: "object"
+              description: "分類統計"
+
+  cache_clear:
+    channel: "cache:clear"
+    type: "invoke"
+    description: "清除快取"
+    source: "design-spec.yaml#api_endpoints.cache_clear"
+
+    request:
+      schema:
+        type: "object"
+        properties:
+          category:
+            type: "string"
+            validation:
+              rules:
+                - type: "enum"
+                  value: ["all", "images", "videos"]
+                  error_message: "無效的快取分類"
+          olderThan:
+            type: "integer"
+            description: "清除 X 天前的快取"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            deletedSize:
+              type: "integer"
+              description: "刪除的大小(bytes)"
+            deletedCount:
+              type: "integer"
+              description: "刪除的項目數"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  main_process:
+    - field: "category"
+      rules:
+        - type: "enum"
+          value: ["all", "images", "videos"]
+          error_message: "無效的快取分類"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  cache:
+    clear_failed: "清除快取失敗"
+    invalid_category: "無效的快取分類"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "cacheManager"
+        tests:
+          - description: "取得快取大小資訊"
+            type: "success"
+          - description: "清除全部快取"
+            type: "success"
+          - description: "清除特定分類快取(images)"
+            type: "success"
+          - description: "清除 X 天前的快取"
+            type: "success"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/cacheHandlers.ts"
+    - "src/main/utils/cacheManager.ts"
+    - "src/main/utils/cacheManager.test.ts"
+
+  tests:
+    - "tests/e2e/cache-management.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US001"
+  design_spec:
+    sections:
+      - "design-spec.yaml#api_endpoints.cache_getSize"
+      - "design-spec.yaml#api_endpoints.cache_clear"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(cache:getSize, cache:clear)"
+
+  validation_rules:
+    - "快取分類 enum 驗證已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

@@ -1,0 +1,511 @@
+# Contract Expected for WP001: 專案管理與檔案操作功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP001"
+  name: "專案管理與檔案操作功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  ProjectFile:
+    description: "專案檔案格式,儲存為 JSON 檔案"
+    source: "design-spec.yaml#data_models.ProjectFile"
+
+    fields:
+      version:
+        type: "string"
+        required: true
+        description: "專案檔案格式版本"
+        example: "1.0"
+
+      projectId:
+        type: "uuid"
+        required: true
+        unique: true
+        description: "專案唯一識別碼"
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+      projectName:
+        type: "string"
+        required: true
+        validation:
+          rules:
+            - type: "minLength"
+              value: 1
+              error_message: "專案名稱不能為空"
+            - type: "maxLength"
+              value: 100
+              error_message: "專案名稱最多 100 字"
+        description: "專案名稱"
+        example: "我的影片專案"
+
+      createdAt:
+        type: "timestamp"
+        required: true
+        description: "專案建立時間"
+        example: "2025-10-29T10:30:00Z"
+
+      updatedAt:
+        type: "timestamp"
+        required: true
+        description: "最後更新時間"
+        example: "2025-10-29T14:20:00Z"
+
+      currentStage:
+        type: "string"
+        required: true
+        validation:
+          rules:
+            - type: "enum"
+              value: ["script-input", "script-editor", "video-preview", "youtube-upload", "completed"]
+              error_message: "無效的階段"
+        description: "目前所在階段"
+        example: "script-editor"
+
+      scriptContent:
+        type: "string"
+        required: true
+        description: "原始文稿內容"
+        example: "這是我的影片文稿內容..."
+
+      settings:
+        type: "object"
+        required: true
+        description: "專案設定"
+        ref: "ProjectSettings"
+
+      generatedAssets:
+        type: "object"
+        required: false
+        description: "生成的資源"
+        ref: "GeneratedAssets"
+
+    storage: "JSON file at user-specified location"
+
+  ProjectSettings:
+    description: "專案設定"
+    source: "design-spec.yaml#data_models.ProjectSettings"
+
+    fields:
+      voiceId:
+        type: "string"
+        required: true
+        description: "選擇的 Google TTS 語音 ID"
+        example: "zh-TW-HsiaoChenNeural"
+
+      outputPath:
+        type: "string"
+        required: true
+        description: "輸出檔案儲存路徑"
+        example: "~/Documents/YTMaker3/我的影片專案"
+
+      imageStyle:
+        type: "string"
+        required: false
+        validation:
+          rules:
+            - type: "enum"
+              value: ["realistic", "cute-illustration", "chinese-classic", "children"]
+              error_message: "無效的圖片風格"
+        description: "圖片風格選擇"
+        example: "realistic"
+
+      didSettings:
+        type: "object"
+        required: false
+        description: "D-ID 設定"
+        ref: "DIDSettings"
+
+      subtitleStyle:
+        type: "object"
+        required: false
+        description: "字幕樣式"
+        ref: "SubtitleStyle"
+
+      logoSettings:
+        type: "object"
+        required: false
+        description: "Logo 設定"
+        ref: "LogoSettings"
+
+# ==================== IPC CHANNELS ====================
+
+ipc_channels:
+  file_read:
+    channel: "file:read"
+    type: "invoke"
+    description: "讀取檔案內容"
+    source: "design-spec.yaml#api_endpoints.file_read"
+
+    request:
+      schema:
+        type: "object"
+        required: ["path"]
+        properties:
+          path:
+            type: "string"
+            description: "檔案絕對路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "檔案路徑不能為空"
+                - type: "isAbsolutePath"
+                  error_message: "必須使用絕對路徑"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            content:
+              type: "string"
+              description: "檔案內容"
+            error:
+              type: "string"
+              description: "錯誤訊息(若有)"
+        example:
+          content: "{\"version\":\"1.0\",\"projectId\":\"...\"}"
+          error: null
+
+      errors:
+        - error_message: "檔案不存在"
+          condition: "檔案路徑不存在"
+        - error_message: "無法讀取檔案"
+          condition: "檔案權限錯誤或其他 I/O 錯誤"
+        - error_message: "檔案格式錯誤"
+          condition: "JSON 解析失敗"
+
+  file_write:
+    channel: "file:write"
+    type: "invoke"
+    description: "寫入檔案內容"
+    source: "design-spec.yaml#api_endpoints.file_write"
+
+    request:
+      schema:
+        type: "object"
+        required: ["path", "content"]
+        properties:
+          path:
+            type: "string"
+            description: "檔案絕對路徑"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "檔案路徑不能為空"
+                - type: "isAbsolutePath"
+                  error_message: "必須使用絕對路徑"
+          content:
+            type: "string"
+            description: "要寫入的內容"
+            validation:
+              rules:
+                - type: "required"
+                  error_message: "內容不能為空"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            success:
+              type: "boolean"
+            error:
+              type: "string"
+        example:
+          success: true
+          error: null
+
+      errors:
+        - error_message: "無法寫入檔案"
+          condition: "寫入權限錯誤或磁碟空間不足"
+
+  file_select:
+    channel: "file:select"
+    type: "invoke"
+    description: "開啟檔案選擇對話框"
+    source: "design-spec.yaml#api_endpoints.file_select"
+
+    request:
+      schema:
+        type: "object"
+        properties:
+          title:
+            type: "string"
+            description: "對話框標題"
+          filters:
+            type: "array"
+            description: "檔案篩選器"
+            items:
+              type: "object"
+              properties:
+                name:
+                  type: "string"
+                extensions:
+                  type: "array"
+          defaultPath:
+            type: "string"
+            description: "預設路徑"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            filePath:
+              type: "string"
+              description: "選擇的檔案路徑"
+            canceled:
+              type: "boolean"
+              description: "是否取消"
+        example:
+          filePath: "/Users/username/Documents/project.json"
+          canceled: false
+
+  directory_select:
+    channel: "directory:select"
+    type: "invoke"
+    description: "開啟目錄選擇對話框"
+    source: "design-spec.yaml#api_endpoints.directory_select"
+
+    request:
+      schema:
+        type: "object"
+        properties:
+          title:
+            type: "string"
+            description: "對話框標題"
+          defaultPath:
+            type: "string"
+            description: "預設路徑"
+
+    response:
+      success:
+        schema:
+          type: "object"
+          properties:
+            directoryPath:
+              type: "string"
+              description: "選擇的目錄路徑"
+            canceled:
+              type: "boolean"
+              description: "是否取消"
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  HomePage:
+    name: "HomePage"
+    type: "page"
+    description: "首頁,顯示歡迎訊息、最近專案、快速動作按鈕"
+    source: "design-spec.yaml#ui_components.HomePage"
+
+    state:
+      recentProjects:
+        type: "array"
+        initial_value: []
+        description: "最近的專案列表(最多 3 個)"
+      apiKeysConfigured:
+        type: "boolean"
+        initial_value: false
+        description: "API 金鑰是否已設定"
+
+    elements:
+      - id: "new-project-button"
+        type: "button"
+        label: "建立新專案"
+        testId: "new-project-btn"
+
+      - id: "load-project-button"
+        type: "button"
+        label: "載入專案"
+        testId: "load-project-btn"
+
+      - id: "recent-projects-list"
+        type: "list"
+        testId: "recent-projects"
+        items: "recentProjects"
+
+      - id: "api-key-settings-button"
+        type: "button"
+        label: "API 設定"
+        testId: "api-settings-btn"
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "點擊載入專案"
+        request_body:
+          title: "選擇專案檔案"
+          filters:
+            - name: "專案檔案"
+              extensions: ["json"]
+        on_success:
+          action: "讀取檔案並載入到 projectStore"
+        on_error:
+          action: "顯示錯誤訊息"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "projectName"
+      rules:
+        - type: "minLength"
+          value: 1
+          error_message: "專案名稱不能為空"
+        - type: "maxLength"
+          value: 100
+          error_message: "專案名稱最多 100 字"
+
+  main_process:
+    - field: "path"
+      rules:
+        - type: "required"
+          error_message: "檔案路徑不能為空"
+        - type: "isAbsolutePath"
+          error_message: "必須使用絕對路徑"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  file_operations:
+    file_not_found: "檔案不存在"
+    file_read_error: "無法讀取檔案"
+    file_write_error: "無法寫入檔案"
+    file_parse_error: "檔案格式錯誤"
+    invalid_path: "必須使用絕對路徑"
+
+  validation:
+    project_name_empty: "專案名稱不能為空"
+    project_name_too_long: "專案名稱最多 100 字"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    backend:
+      - component: "fileHandlers"
+        tests:
+          - description: "file:read 成功讀取檔案"
+            type: "success"
+          - description: "file:read 檔案不存在時返回錯誤"
+            type: "error"
+          - description: "file:write 成功寫入檔案"
+            type: "success"
+          - description: "file:select 開啟對話框並返回路徑"
+            type: "success"
+          - description: "file:select 取消時返回 canceled"
+            type: "edge-case"
+
+    frontend:
+      - component: "HomePage"
+        tests:
+          - description: "渲染所有必要元件(按鈕、最近專案列表)"
+            type: "render"
+          - description: "點擊建立新專案跳轉到文稿輸入頁面"
+            type: "interaction"
+          - description: "點擊載入專案開啟檔案選擇對話框"
+            type: "interaction"
+          - description: "成功載入專案後更新 projectStore"
+            type: "interaction"
+          - description: "載入失敗時顯示錯誤訊息"
+            type: "error"
+
+  integration_tests:
+    - description: "完整的專案載入流程(選擇檔案 -> 讀取 -> 解析 -> 顯示)"
+      steps:
+        - "使用者點擊載入專案"
+        - "開啟檔案選擇對話框"
+        - "選擇 JSON 檔案"
+        - "讀取檔案內容"
+        - "解析 JSON"
+        - "更新 projectStore"
+        - "跳轉到對應階段頁面"
+
+  e2e_tests:
+    - description: "建立新專案並儲存"
+      steps:
+        - "啟動應用程式"
+        - "點擊建立新專案"
+        - "填寫專案資訊"
+        - "儲存專案"
+        - "驗證檔案已建立"
+
+    - description: "載入現有專案"
+      steps:
+        - "啟動應用程式"
+        - "點擊載入專案"
+        - "選擇專案檔案"
+        - "驗證專案資料已載入"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  main_process:
+    - "src/main/ipc/fileHandlers.ts"
+    - "src/main/ipc/fileHandlers.test.ts"
+    - "src/main/utils/fileValidator.ts"
+    - "src/main/utils/recentProjects.ts"
+
+  renderer_process:
+    - "src/renderer/pages/HomePage/HomePage.tsx"
+    - "src/renderer/pages/HomePage/HomePage.test.tsx"
+    - "src/renderer/pages/HomePage/components/RecentProjectCard.tsx"
+    - "src/renderer/pages/HomePage/components/QuickActionButton.tsx"
+    - "src/renderer/stores/projectStore.ts"
+
+  tests:
+    - "tests/e2e/project-file-management.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US004"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/01-home-page.md"
+    contracts:
+      - "visual-spec/contracts/electron-ipc.yaml"
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.ProjectFile"
+      - "design-spec.yaml#data_models.ProjectSettings"
+      - "design-spec.yaml#api_endpoints.file_read"
+      - "design-spec.yaml#api_endpoints.file_write"
+      - "design-spec.yaml#api_endpoints.file_select"
+      - "design-spec.yaml#api_endpoints.directory_select"
+      - "design-spec.yaml#ui_components.HomePage"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 ProjectFile 欄位名稱必須與契約一致"
+    - "所有 ProjectSettings 欄位名稱必須與契約一致"
+
+  ipc_channels:
+    - "IPC 通道名稱必須完全一致(file:read, file:write, file:select, directory:select)"
+
+  request_response:
+    - "Request/Response 欄位名稱必須完全一致"
+
+  validation_rules:
+    - "projectName minLength/maxLength 驗證已實作"
+    - "path 絕對路徑驗證已實作"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"

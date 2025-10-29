@@ -1,0 +1,260 @@
+# Contract Expected for WP008: Logo 編輯功能
+# Generated: 2025-10-29
+# Source: design-spec.yaml
+
+version: "1.0.0"
+
+work_package:
+  id: "WP008"
+  name: "Logo 編輯功能"
+  type: "full-stack-feature"
+
+# ==================== DATA MODELS ====================
+
+data_models:
+  LogoSettings:
+    description: "Logo 設定"
+    source: "design-spec.yaml#data_models.LogoSettings"
+
+    fields:
+      enabled:
+        type: "boolean"
+        required: false
+        description: "是否啟用 Logo"
+        example: true
+
+      imagePath:
+        type: "string"
+        required: false
+        description: "Logo 圖片路徑"
+        example: "~/Documents/YTMaker3/logo.png"
+
+      position:
+        type: "object"
+        required: false
+        description: "Logo 位置"
+        ref: "Position2D"
+
+      scale:
+        type: "number"
+        required: false
+        validation:
+          rules:
+            - type: "minimum"
+              value: 0.1
+              error_message: "縮放比例最小 0.1"
+            - type: "maximum"
+              value: 2.0
+              error_message: "縮放比例最大 2.0"
+        description: "縮放比例"
+        example: 1.0
+
+  Position2D:
+    description: "2D 位置座標"
+    source: "design-spec.yaml#data_models.Position2D"
+
+    fields:
+      x:
+        type: "integer"
+        required: true
+        validation:
+          rules:
+            - type: "minimum"
+              value: 0
+              error_message: "X 座標最小為 0"
+        description: "X 座標 (px,左上角為 0)"
+        example: 100
+
+      y:
+        type: "integer"
+        required: true
+        validation:
+          rules:
+            - type: "minimum"
+              value: 0
+              error_message: "Y 座標最小為 0"
+        description: "Y 座標 (px,左上角為 0)"
+        example: 50
+
+# ==================== UI COMPONENTS ====================
+
+ui_components:
+  LogoEditor:
+    name: "LogoEditor"
+    type: "component"
+    description: "Logo 編輯元件(在 VideoPreviewPage 中使用)"
+
+    state:
+      logoEnabled:
+        type: "boolean"
+        initial_value: false
+        description: "是否啟用 Logo"
+      logoPath:
+        type: "string"
+        initial_value: null
+        description: "Logo 圖片路徑"
+      logoPosition:
+        type: "object"
+        initial_value: "{ x: 100, y: 50 }"
+        description: "Logo 位置"
+      logoScale:
+        type: "number"
+        initial_value: 1.0
+        description: "縮放比例"
+
+    elements:
+      - id: "enable-logo-checkbox"
+        type: "checkbox"
+        testId: "enable-logo"
+        label: "啟用 Logo"
+
+      - id: "upload-logo-button"
+        type: "button"
+        label: "上傳 Logo"
+        testId: "upload-logo-btn"
+
+      - id: "logo-preview"
+        type: "image"
+        testId: "logo-preview"
+        draggable: true
+
+      - id: "logo-scale-slider"
+        type: "slider"
+        testId: "logo-scale"
+        min: 0.1
+        max: 2.0
+        step: 0.1
+
+    api_calls:
+      - endpoint: "file:select"
+        method: "invoke"
+        trigger: "上傳 Logo"
+        request_body:
+          title: "選擇 Logo 圖片"
+          filters:
+            - name: "圖片檔案"
+              extensions: ["png", "jpg", "jpeg"]
+        on_success:
+          action: "顯示 Logo 預覽,啟用拖曳定位"
+        on_error:
+          action: "顯示錯誤:不支援的格式"
+
+# ==================== VALIDATION RULES ====================
+
+validation_rules:
+  client_side:
+    - field: "logoScale"
+      rules:
+        - type: "minimum"
+          value: 0.1
+          error_message: "縮放比例最小 0.1"
+        - type: "maximum"
+          value: 2.0
+          error_message: "縮放比例最大 2.0"
+
+    - field: "position.x"
+      rules:
+        - type: "minimum"
+          value: 0
+          error_message: "X 座標最小為 0"
+
+    - field: "position.y"
+      rules:
+        - type: "minimum"
+          value: 0
+          error_message: "Y 座標最小為 0"
+
+# ==================== ERROR MESSAGES ====================
+
+error_messages:
+  validation:
+    invalid_scale: "縮放比例必須在 0.1 到 2.0 之間"
+    invalid_x_position: "X 座標最小為 0"
+    invalid_y_position: "Y 座標最小為 0"
+    unsupported_format: "不支援的格式"
+
+# ==================== TESTING REQUIREMENTS ====================
+
+testing_requirements:
+  unit_tests:
+    frontend:
+      - component: "LogoEditor"
+        tests:
+          - description: "渲染 Logo 編輯控制"
+            type: "render"
+          - description: "啟用 Logo 時顯示上傳按鈕"
+            type: "interaction"
+          - description: "上傳 Logo 並顯示預覽"
+            type: "interaction"
+          - description: "拖曳 Logo 更新位置座標"
+            type: "interaction"
+          - description: "調整縮放比例(0.1-2.0)"
+            type: "interaction"
+          - description: "驗證圖片格式(PNG, JPG)"
+            type: "validation"
+
+  integration_tests:
+    - description: "完整的 Logo 編輯流程"
+      steps:
+        - "啟用 Logo"
+        - "上傳 Logo 圖片"
+        - "拖曳 Logo 到右下角"
+        - "調整縮放比例為 0.8"
+        - "即時預覽 Logo 效果"
+        - "儲存 Logo 設定"
+
+  e2e_tests:
+    - description: "Logo 上傳與定位"
+      steps:
+        - "進入影片預覽頁面"
+        - "啟用 Logo"
+        - "上傳 PNG 圖片"
+        - "拖曳 Logo 到指定位置"
+        - "調整縮放比例"
+        - "驗證 Logo 設定已儲存"
+
+  coverage_requirement:
+    minimum: 80
+
+# ==================== EXPECTED FILES ====================
+
+expected_files:
+  renderer_process:
+    - "src/renderer/components/domain/LogoEditor.tsx"
+    - "src/renderer/components/domain/LogoEditor.test.tsx"
+
+  tests:
+    - "tests/e2e/logo-editing.spec.ts"
+
+# ==================== TRACEABILITY ====================
+
+traceability:
+  user_stories:
+    - "US002"
+  visual_spec:
+    pages:
+      - "visual-spec/pages/04-video-preview-page.md"
+    contracts:
+      - "visual-spec/contracts/internal-data-contracts.yaml"
+  design_spec:
+    sections:
+      - "design-spec.yaml#data_models.LogoSettings"
+      - "design-spec.yaml#data_models.Position2D"
+      - "design-spec.yaml#ui_components.VideoPreviewPage"
+
+# ==================== VERIFICATION POINTS ====================
+
+verification_points:
+  field_names:
+    - "所有 LogoSettings 欄位名稱必須與契約一致"
+    - "所有 Position2D 欄位名稱必須與契約一致"
+
+  validation_rules:
+    - "縮放比例範圍驗證已實作(0.1-2.0)"
+    - "座標最小值驗證已實作(>= 0)"
+
+  error_messages:
+    - "所有錯誤訊息與契約完全相同(word-for-word)"
+
+  test_coverage:
+    - "測試覆蓋率 >= 80%"
