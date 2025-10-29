@@ -1,4 +1,4 @@
-# SpecKit V2 - 新工作流程（四層規格系統）
+# SpecKit V2 - 新工作流程（七層規格系統）
 
 **最後更新**: 2025-01-15
 **版本**: 2.0.0
@@ -7,7 +7,7 @@
 
 ## 概述
 
-SpecKit V2 使用**四層規格系統**將使用者需求轉換為經過驗證的實作，支援**平行 AI 開發**和**基於契約的驗證**。
+SpecKit V2 使用**七層規格系統**將使用者需求轉換為經過驗證的實作，支援**平行 AI 開發**和**基於契約的驗證**。
 
 **核心原則**：
 - 垂直切分功能（非水平切分）
@@ -17,16 +17,19 @@ SpecKit V2 使用**四層規格系統**將使用者需求轉換為經過驗證�
 
 ---
 
-## 四個層級
+## 七個層級
 
 ```
 Layer 1: 需求規格 (spec.md)
   ↓ /speckit.clarify（可選）
   ↓ /speckit.visualize
+  ↓
 Layer 2: 視覺規格 (visual-spec/)  ← 你的主要審核點
   ↓ /speckit.plan
+  ↓
 Layer 3: 設計規格 (design-spec.yaml)
   ↓ /speckit.breakdown
+  ↓
 Layer 4: Work Packages (work-packages/)
   ↓ /speckit.implement（只寫程式碼，平行執行）
   ↓ /speckit.verify（自動執行：契約驗證 + 測試 + 診斷）
@@ -40,7 +43,7 @@ Layer 4: Work Packages (work-packages/)
   ↓
   ↓ 循環直到所有 WP 測試通過
   ↓
-Phase 6: 整合與整合測試
+Layer 5: 整合與整合測試
   ↓ /speckit.analyze --all（分析重複與衝突）
      └─ 生成 integration-analysis.md
   ↓ /speckit.integrate --dry-run（預覽）
@@ -58,7 +61,7 @@ Phase 6: 整合與整合測試
      ├─ 是 → /speckit.fix-integration --auto（自動修正並重新測試）
      └─ 否 → 進入下一階段
   ↓
-Phase 7: 人工測試（UAT）
+Layer 6: 人工測試（UAT）
   ↓ /speckit.uat --prepare-env（快速啟動測試環境，5 秒）
      ├─ 根據 deployment.target 選擇啟動方式
      ├─ Static HTML: HTTP server + 開啟瀏覽器
@@ -72,7 +75,7 @@ Phase 7: 人工測試（UAT）
      ├─ 是 → /speckit.uat --stop → 進入部署階段
      └─ 否 → 修正問題 → 重新執行 /speckit.uat --prepare-env
   ↓
-Phase 8: 部署準備
+Layer 7: 部署準備
   ↓ /speckit.deploy（生成部署配置）
      ├─ 讀取 design-spec.yaml 的 deployment 區塊
      ├─ 根據 deployment.target 生成對應配置
@@ -87,7 +90,7 @@ Phase 8: 部署準備
      └─ GCP: 部署到 Cloud Run
   ↓
   └─ ✅ 完成，已上線！
-
+```
 ---
 
 ### Layer 1: 需求規格 (spec.md)
